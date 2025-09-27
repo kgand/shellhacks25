@@ -452,13 +452,17 @@ class SimpleCaptureGUI:
         self.process_button = ttk.Button(button_frame, text="🔄 Process Files", command=self._process_captured_files)
         self.process_button.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         
+        # Add AI analysis button
+        self.ai_analysis_button = ttk.Button(button_frame, text="🤖 Start AI Analysis", command=self._start_ai_analysis)
+        self.ai_analysis_button.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        
         # Progress bar
         self.progress = ttk.Progressbar(control_frame, mode='indeterminate')
-        self.progress.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
+        self.progress.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
         
         # Status info
         self.capture_info = ttk.Label(control_frame, text="Ready to capture", style='Info.TLabel')
-        self.capture_info.grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
+        self.capture_info.grid(row=4, column=0, sticky=tk.W, pady=(10, 0))
     
     def _create_log_section(self, parent):
         """Create log section"""
@@ -739,6 +743,116 @@ class SimpleCaptureGUI:
             
         except Exception as e:
             self._log_message(f"Error in manual processing: {e}", "ERROR")
+    
+    def _start_ai_analysis(self):
+        """Start AI analysis of captured content"""
+        try:
+            self._log_message("Starting AI analysis...")
+            
+            # Check if server is running
+            import requests
+            try:
+                response = requests.get("http://127.0.0.1:8000/health", timeout=5)
+                if response.status_code != 200:
+                    self._log_message("Server is not running. Please start the server first.", "ERROR")
+                    return
+            except:
+                self._log_message("Cannot connect to server. Please start the server first.", "ERROR")
+                return
+            
+            # Create a session for AI analysis
+            session_data = {"ai_analysis": True, "timestamp": datetime.now().isoformat()}
+            session_response = requests.post("http://127.0.0.1:8000/sessions", json=session_data)
+            
+            if session_response.status_code == 200:
+                session_id = session_response.json()["session_id"]
+                self._log_message(f"Created AI analysis session: {session_id}")
+                
+                # Start real-time analysis
+                analysis_response = requests.post(f"http://127.0.0.1:8000/start-analysis/{session_id}")
+                
+                if analysis_response.status_code == 200:
+                    self._log_message("AI analysis started successfully", "SUCCESS")
+                    self.capture_info.config(text="AI analysis in progress...")
+                    
+                    # Start monitoring analysis in background
+                    self._monitor_ai_analysis(session_id)
+                else:
+                    self._log_message(f"Failed to start AI analysis: {analysis_response.status_code}", "ERROR")
+            else:
+                self._log_message(f"Failed to create session: {session_response.status_code}", "ERROR")
+                
+        except Exception as e:
+            self._log_message(f"Error starting AI analysis: {e}", "ERROR")
+    
+    def _monitor_ai_analysis(self, session_id):
+        """Monitor AI analysis progress"""
+        def monitor_thread():
+            try:
+                import requests
+                import time
+                
+                while True:
+                    # Check analysis status
+                    status_response = requests.get("http://127.0.0.1:8000/analysis-status")
+                    if status_response.status_code == 200:
+                        status = status_response.json()
+                        analysis = status.get("analysis", {})
+                        
+                        # Update GUI with analysis results
+                        frame_count = analysis.get("frame_analyses", 0)
+                        audio_count = analysis.get("audio_analyses", 0)
+                        summary = analysis.get("summary", "")
+                        
+                        self.root.after(0, lambda: self._update_analysis_display(
+                            frame_count, audio_count, summary
+                        ))
+                        
+                        # Check if we have a comprehensive summary
+                        comprehensive = analysis.get("comprehensive_summary")
+                        if comprehensive:
+                            self.root.after(0, lambda: self._display_comprehensive_summary(comprehensive))
+                            break
+                    
+                    time.sleep(5)  # Check every 5 seconds
+                    
+            except Exception as e:
+                self.root.after(0, lambda: self._log_message(f"Error monitoring AI analysis: {e}", "ERROR"))
+        
+        # Start monitoring in background thread
+        import threading
+        monitor_thread_obj = threading.Thread(target=monitor_thread, daemon=True)
+        monitor_thread_obj.start()
+    
+    def _update_analysis_display(self, frame_count, audio_count, summary):
+        """Update the analysis display"""
+        self.capture_info.config(text=f"AI Analysis: {frame_count} frames, {audio_count} audio files analyzed")
+        
+        if summary:
+            self._log_message(f"Analysis Summary: {summary[:100]}...")
+    
+    def _display_comprehensive_summary(self, comprehensive_summary):
+        """Display comprehensive summary"""
+        try:
+            if isinstance(comprehensive_summary, dict):
+                overall = comprehensive_summary.get("overall_summary", "No summary available")
+                summaries = comprehensive_summary.get("summaries", {})
+                
+                self._log_message("🎉 AI Analysis Complete!", "SUCCESS")
+                self._log_message(f"Overall Summary: {overall}")
+                
+                if summaries.get("brief"):
+                    self._log_message(f"Brief: {summaries['brief']}")
+                if summaries.get("key_points"):
+                    self._log_message(f"Key Points: {summaries['key_points']}")
+                
+                self.capture_info.config(text="AI analysis completed successfully")
+            else:
+                self._log_message("AI analysis completed", "SUCCESS")
+                self.capture_info.config(text="AI analysis completed")
+                
+        except Exception as e:
+            self._log_message(f"Error displaying summary: {e}", "ERROR")
     
     def _open_messenger(self):
         """Open Messenger in browser"""
