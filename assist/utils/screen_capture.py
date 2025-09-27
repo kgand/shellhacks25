@@ -11,8 +11,8 @@ import cv2
 import numpy as np
 from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
-from .platform_utils import platform_detector
-from .window_detector import WindowInfo
+from platform_utils import platform_detector
+from window_detector import WindowInfo
 
 logger = logging.getLogger(__name__)
 

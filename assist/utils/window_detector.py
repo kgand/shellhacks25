@@ -8,7 +8,7 @@ import sys
 import logging
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-from .platform_utils import platform_detector
+from platform_utils import platform_detector
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ import logging
 import wave
 import numpy as np
 from typing import Optional, Dict, Any
-from .platform_utils import platform_detector
+from platform_utils import platform_detector
 
 logger = logging.getLogger(__name__)
 

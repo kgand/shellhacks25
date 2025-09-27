@@ -66,7 +66,7 @@ class CrossPlatformTester:
         logger.info("🔍 Testing Platform Detection...")
         
         try:
-            from platform_utils import platform_detector
+            from utils.platform_utils import platform_detector
             
             # Test basic platform detection
             platform_name = platform_detector.get_platform_name()
@@ -100,7 +100,7 @@ class CrossPlatformTester:
         logger.info("🪟 Testing Window Detection...")
         
         try:
-            from window_detector import CrossPlatformWindowDetector
+            from utils.window_detector import CrossPlatformWindowDetector
             
             detector = CrossPlatformWindowDetector()
             
@@ -122,7 +122,7 @@ class CrossPlatformTester:
         logger.info("🎤 Testing Audio Capture...")
         
         try:
-            from audio_capture import CrossPlatformAudioCapture
+            from utils.audio_capture import CrossPlatformAudioCapture
             
             audio_capture = CrossPlatformAudioCapture()
             
@@ -153,8 +153,8 @@ class CrossPlatformTester:
         logger.info("📸 Testing Screen Capture...")
         
         try:
-            from screen_capture import CrossPlatformScreenCapture
-            from window_detector import WindowInfo
+            from utils.screen_capture import CrossPlatformScreenCapture
+            from utils.window_detector import WindowInfo
             
             screen_capture = CrossPlatformScreenCapture()
             
@@ -186,7 +186,7 @@ class CrossPlatformTester:
         logger.info("📁 Testing File Operations...")
         
         try:
-            from platform_utils import platform_detector
+            from utils.platform_utils import platform_detector
             
             # Test file manager opening
             test_dir = os.path.abspath(".")
