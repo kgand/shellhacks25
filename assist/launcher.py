@@ -51,7 +51,7 @@ class SimpleLauncher:
         try:
             logger.info("🚀 Starting simplified backend server...")
             self.backend_process = subprocess.Popen([
-                sys.executable, "simple_app.py"
+                sys.executable, "app.py"
             ], cwd="server")
             
             # Wait for backend to start
@@ -79,7 +79,7 @@ class SimpleLauncher:
         try:
             logger.info("🖥️ Starting simplified screen capture GUI...")
             self.gui_process = subprocess.Popen([
-                sys.executable, "simple_gui.py"
+                sys.executable, "gui.py"
             ], cwd="screen_capture")
             
             logger.info("✅ Screen capture GUI started")
