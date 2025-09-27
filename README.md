@@ -30,10 +30,11 @@ A professional screen capture and AI processing system for Messenger Web convers
    ollama pull qwen3:8b
    ```
 
-3. **Run cross-platform setup**
+3. **Install dependencies**
    ```bash
    cd assist
-   python setup_cross_platform.py
+   pip install -r server/requirements.txt
+   pip install -r screen_capture/requirements.txt
    ```
 
 4. **Start the application**
@@ -167,39 +168,21 @@ curl http://localhost:8000/analysis-status
 
 ## 🔧 Configuration
 
-### Platform-Specific Setup
+### Platform-Specific Dependencies
 
 #### Windows
 ```bash
-# Install Windows-specific dependencies
 pip install pywin32 sounddevice
-
-# Run setup
-python setup_cross_platform.py
 ```
 
 #### macOS
 ```bash
-# Install macOS-specific dependencies
 pip install pyobjc-framework-Quartz pyobjc-framework-Cocoa sounddevice
-
-# Grant accessibility permissions (if needed)
-# System Preferences > Security & Privacy > Privacy > Accessibility
-
-# Run setup
-python setup_cross_platform.py
 ```
 
 #### Linux
 ```bash
-# Install Linux-specific dependencies
 pip install python3-xlib sounddevice
-
-# Ensure X11 is running
-echo $DISPLAY
-
-# Run setup
-python setup_cross_platform.py
 ```
 
 ### Ollama Setup
