@@ -3,7 +3,7 @@
 # -------------------------------
 
 
-async def transcribe_audio(audio_frames: List[float]) -> Dict[str, Any]:
+async def transcribe_audio(audio_frames: list[float]) -> dict[str, any]:
     if not audio_frames:
         return {"transcript": "", "confidence": 0.0}
 
@@ -92,3 +92,17 @@ async def _extract_relationships_internal(utterances: List[Dict]) -> List[Dict]:
             "evidence": "mentioned working together",
         }
     ]
+
+
+# -------------------------------
+# Store Insights Function
+# -------------------------------
+
+
+async def store_insights(insights: Dict[str, Any]) -> bool:
+    """Store insights to Firestore DB (stub)"""
+    # This will use your GOOGLE_APPLICATION_CREDENTIALS env variable for auth
+    db = firestore.Client()
+    # Auto-generated document ID
+    doc_ref = db.collection("people_insights").document()  # random ID
+    doc_ref.set(insights)

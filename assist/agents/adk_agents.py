@@ -1,6 +1,4 @@
-"""
-ADK (Agent Development Kit) implementation for conversation processing
-"""
+# Run using python3 assist/agents/adk_agents.py
 
 import asyncio
 import logging
@@ -12,20 +10,19 @@ import os
 from google.cloud import firestore
 from datetime import datetime
 
+from agent_tools.tools import store_insights
+
 # ADK imports (these would be installed via pip install google-cloud-aiplatform[adk])
 from google.cloud import aiplatform
 from google.cloud.aiplatform import adk
 from google.cloud.aiplatform.adk import Agent, Task, MemoryBank
 
-except ImportError:
-    # Fallback for development
-    aiplatform = None
-    adk = None
-    Agent = None
-    Task = None
-    MemoryBank = None
-
 logger = logging.getLogger(__name__)
+
+orchestrator = ADKOrchestrator()
+orchestrator.initialize()
+orchestrator.start()
+
 
 # -------------------------------
 # Video Parser and Agent Orchestrator
@@ -35,14 +32,18 @@ logger = logging.getLogger(__name__)
 class ADKOrchestrator:
     """ADK Orchestrator for managing agents and memory bank"""
 
-    def __init__(self, project_id: str, location: str = "us-central1"):
-        self.project_id = project_id
+    def __init__(self, location: str = "us-central1"):
         self.location = location
         self.data = None
         self.agents = {}
         self.is_running = False
         self.processing_queue = asyncio.Queue()
         self.id = 0
+        self.insights = {
+            "face": {"face_id": "", "embedding": [], "timestamp": ""},
+            "location": "",
+            "summary": "",
+        }
 
     async def initialize(self):
         """Initialize the orchestrator"""
@@ -58,17 +59,18 @@ class ADKOrchestrator:
     async def start(self):
         """Start the orchestrator"""
         if not self.is_running:
-            await self.initialize()    
+            await self.initialize()
 
         # Pull from Firestore DB packaged images (this may be already split up into just face sections)
         TestData = {
             "face": {
-                    "face_id": "face1",
-                    "timestamp": "2025-09-27T16:00:00Z",
-                    "bbox": [100, 50, 150, 100],
-                    "embedding": [0.12, 0.93, ...],
-                },
+                "face_id": "face1",
+                "timestamp": "2025-09-27T16:00:00Z",
+                "bbox": [100, 50, 150, 100],
+                "embedding": [0.12, 0.93, ...],
+            },
             "audio_uri": "gs://bucket/vid123_audio.wav",
+            "location": "Sample Location",
         }
         test_id = self.id
         self.id += 1
@@ -77,16 +79,26 @@ class ADKOrchestrator:
 
         # Initialize agents (here use A2A) passing images and audio out
 
-        await ctx.send_task(
-            target="video_agent", task="face_detection", payload={"video_" + str(test_id): TestData["face"]}
+        res = await ctx.send_task(
+            target="video_agent",
+            task="face_detection",
+            payload={"video_" + str(test_id): TestData["face"]},
         )
 
-        await ctx.send_task(
-            target="audio_agent", task="process_audio", payload={"audio_" + str(test_id): TestData["audio_uri"]},
+        self.insights["face"] = res  # Store face insights
+
+        res = await ctx.send_task(
+            target="audio_agent",
+            task="process_audio",
+            payload={"audio_" + str(test_id): TestData["audio_uri"]},
         )
+
+        self.insights["summary"] = res  # Store audio insights
 
         # Call function to save location and other relevant data to output FirsestorDB that agents also send results too
-        
+        self.insights["location"] = TestData["location"]
+        store_insights(self.insights)
+        self.insights = {}  # reset for next
 
         # Start next processing loop once above finishes (TODO)
         asyncio.create_task(self._processing_loop())
@@ -102,71 +114,20 @@ class ADKOrchestrator:
 
         logger.info("ADK Orchestrator stopped")
 
-    async def process_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process data through the agent pipeline"""
-        try:
-            # Add to processing queue
-            await self.processing_queue.put(data)
-
-            # Process through agents
-            results = {}
-
-            # Transcriber
-            if "audio_frames" in data:
-                transcriber_result = await self.agents["transcriber"].process(data)
-                results["transcription"] = transcriber_result
-
-            # Summarizer
-            if "utterances" in data:
-                summarizer_result = await self.agents["summarizer"].process(data)
-                results["summary"] = summarizer_result
-
-            # Action Planner
-            if "utterances" in data:
-                action_result = await self.agents["action_planner"].process(data)
-                results["actions"] = action_result
-
-            # Relationship Miner
-            if "utterances" in data:
-                relationship_result = await self.agents["relationship_miner"].process(
-                    data
-                )
-                results["relationships"] = relationship_result
-
-            # Memory Writer
-            if "memories" in data:
-                memory_result = await self.agents["memory_writer"].process(data)
-                results["memory_written"] = memory_result
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Error processing data: {e}")
-            return {}
-
     async def _processing_loop(self):
         """Main processing loop that will call next batch of data"""
         while self.is_running:
             try:
-                # Get next item from queue
-                data = await asyncio.wait_for(self.processing_queue.get(), timeout=1.0)
+                # Get next item from database
+                # Set self.data equal to this
 
                 # Process through pipeline
-                await self.process_data(data)
+                await self.start()
 
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 logger.error(f"Error in processing loop: {e}")
-                
-    async def store_insights(insights: Dict[str, Any]) -> bool:
-        """Store insights to Firestore DB (stub)"""
-        # This will use your GOOGLE_APPLICATION_CREDENTIALS env variable for auth
-        db = firestore.Client()
-        # Auto-generated document ID
-        doc_ref = db.collection("people_insights").document()  # random ID
-        doc_ref.set(insights)
-
 
     async def get_memories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get memories from the memory bank"""
@@ -240,26 +201,9 @@ class VideoAgent(ADKAgent):
         # Register a task for face detection
         @self.agent.task(name="face_detection")
         async def face_detection(ctx: Context, video_id: str):
-            """
-            ctx is automatically provided by ADK
-            video_id is passed in the payload
-            """
-            # Pull video info from shared MemoryBank
-            video_entry = ctx.memory[video_id]
-            video_frames = video_entry.get("frames", [])
 
             # Call your existing processing function
             result = await self.process(video_frames)
-
-            # Optionally store results back in MemoryBank
-            ctx.memory[video_id]["faces"] = result.get("faces", [])
-
-            # Optionally notify orchestrator / other agents
-            await ctx.send_task(
-                target="orchestrator",
-                task="video_done",
-                payload={"video_id": video_id, "result": result},
-            )
 
             return result
 
@@ -284,22 +228,8 @@ class AudioAgent(ADKAgent):
     def register_tasks(self):
         @self.agent.task(name="process_audio")
         async def process_audio(ctx: Context, video_id: str):
-            # Pull audio frames from MemoryBank
-            video_entry = ctx.memory[video_id]
-            audio_frames = video_entry.get("audio_frames", [])
-
-            # Your existing processing function
-            result = await self.process(audio_frames)
-
-            # Store results back
-            ctx.memory[video_id]["audio_result"] = result
-
-            # Notify orchestrator
-            await ctx.send_task(
-                target="orchestrator",
-                task="audio_done",
-                payload={"video_id": video_id, "result": result},
-            )
+            # Call your existing processing function
+            result = await self.process(video_frames)
 
             return result
 
