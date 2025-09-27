@@ -243,11 +243,19 @@ class ScreenCapture:
         
         return True
     
-    async def start_capture(self):
+    async def start_capture(self, selected_window=None):
         """Start capturing screen and audio"""
         if self.is_capturing:
             logger.warning("Capture already in progress")
             return False
+        
+        # Use provided window or detector's selected window
+        if selected_window:
+            self.selected_window = selected_window
+        elif self.detector.selected_window:
+            self.selected_window = self.detector.selected_window
+        else:
+            raise ValueError("No window selected for capture")
             
         try:
             # Connect to backend
@@ -258,7 +266,7 @@ class ScreenCapture:
             
             # Start capture thread
             self.is_capturing = True
-            self.capture_thread = threading.Thread(target=self._capture_loop)
+            self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.capture_thread.start()
             
             logger.info("Screen capture started")
@@ -298,42 +306,55 @@ class ScreenCapture:
             raise
     
     def _capture_loop(self):
-        """Main capture loop (runs in separate thread)"""
+        """Optimized capture loop (runs in separate thread)"""
         frame_count = 0
+        audio_chunk_count = 0
         
         # Create a new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
+        # Performance optimization: reduce capture frequency
+        frame_interval = 0.2  # Capture every 200ms (5 FPS)
+        audio_interval = 0.1  # Audio every 100ms
+        last_frame_time = 0
+        last_audio_time = 0
+        
         try:
             while self.is_capturing:
+                current_time = time.time()
+                
                 try:
-                    # Capture screen frame
-                    if self.selected_window:
+                    # Capture screen frame (optimized frequency)
+                    if self.selected_window and (current_time - last_frame_time) >= frame_interval:
                         frame = self._capture_screen_frame()
                         if frame is not None:
-                            # Send frame to backend
+                            # Send frame to backend asynchronously
                             loop.run_until_complete(self._send_frame(frame, frame_count))
                             frame_count += 1
+                            last_frame_time = current_time
                     
-                    # Capture audio data
-                    audio_data = self.audio_capture.get_audio_data()
-                    if audio_data:
-                        loop.run_until_complete(self._send_audio(audio_data))
+                    # Capture audio data (optimized frequency)
+                    if (current_time - last_audio_time) >= audio_interval:
+                        audio_data = self.audio_capture.get_audio_data()
+                        if audio_data:
+                            loop.run_until_complete(self._send_audio(audio_data))
+                            audio_chunk_count += 1
+                            last_audio_time = current_time
                     
-                    # Small delay to prevent overwhelming the system
-                    time.sleep(0.1)
+                    # Adaptive sleep based on performance
+                    time.sleep(0.05)  # Reduced sleep for better responsiveness
                     
                 except Exception as e:
                     logger.error(f"Error in capture loop: {e}")
-                    time.sleep(1)
+                    time.sleep(0.5)  # Longer sleep on error
         finally:
             loop.close()
     
     def _capture_screen_frame(self) -> Optional[np.ndarray]:
-        """Capture a single screen frame"""
+        """Optimized screen frame capture"""
         try:
-            if not self.selected_window or not self.detector.screen_capture:
+            if not self.selected_window:
                 return None
                 
             # Capture screen region
@@ -349,9 +370,24 @@ class ScreenCapture:
                 screenshot = mss_instance.grab(monitor)
                 frame = np.array(screenshot)
             
-            # Convert BGRA to BGR
+            # Optimize frame processing
             if len(frame.shape) == 3 and frame.shape[2] == 4:
+                # Convert BGRA to BGR more efficiently
+                frame = frame[:, :, :3]  # Remove alpha channel
+            elif len(frame.shape) == 3 and frame.shape[2] == 3:
+                # Already BGR, no conversion needed
+                pass
+            else:
+                # Handle other formats
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            
+            # Optional: Resize frame for better performance
+            height, width = frame.shape[:2]
+            if width > 1280:  # Limit width for performance
+                scale = 1280 / width
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                frame = cv2.resize(frame, (new_width, new_height))
             
             return frame
             
@@ -360,22 +396,30 @@ class ScreenCapture:
             return None
     
     async def _send_frame(self, frame: np.ndarray, frame_count: int):
-        """Send frame to backend"""
+        """Optimized frame sending to backend"""
         try:
             if self.websocket and not self.websocket.closed:
-                # Encode frame as JPEG
-                _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                # Optimize JPEG encoding for better performance
+                encode_params = [cv2.IMWRITE_JPEG_QUALITY, 70]  # Reduced quality for speed
+                _, buffer = cv2.imencode('.jpg', frame, encode_params)
                 frame_data = buffer.tobytes()
                 
-                # Create message
-                message = {
-                    "type": "video_frame",
-                    "frame_count": frame_count,
-                    "timestamp": datetime.now().isoformat(),
-                    "data": frame_data.hex()  # Convert to hex string for JSON
-                }
-                
-                await self.websocket.send(json.dumps(message))
+                # Only send if frame is not too large
+                if len(frame_data) < 500000:  # 500KB limit
+                    message = {
+                        "type": "video_frame",
+                        "frame_count": frame_count,
+                        "timestamp": datetime.now().isoformat(),
+                        "data": frame_data.hex(),
+                        "size": len(frame_data)
+                    }
+                    
+                    await self.websocket.send(json.dumps(message))
+                    # Reduced logging frequency
+                    if frame_count % 10 == 0:
+                        logger.info(f"Sent frame {frame_count} ({len(frame_data)} bytes)")
+                else:
+                    logger.warning(f"Frame {frame_count} too large ({len(frame_data)} bytes), skipping")
                 
         except Exception as e:
             logger.error(f"Error sending frame: {e}")

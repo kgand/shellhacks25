@@ -240,13 +240,16 @@ class ScreenCaptureGUI:
         ttk.Button(actions_frame, text="🐛 Report Issue", command=self._report_issue).grid(row=0, column=1)
     
     def _start_window_detection(self):
-        """Start window detection in background thread"""
+        """Optimized window detection in background thread"""
         def detect_windows():
             while True:
                 try:
                     windows = self.detector.find_messenger_windows()
-                    self.root.after(0, self._update_window_list)
-                    threading.Event().wait(2)  # Check every 2 seconds
+                    # Only update GUI if window count changed
+                    if len(windows) != getattr(self, '_last_window_count', -1):
+                        self.root.after(0, self._update_window_list)
+                        self._last_window_count = len(windows)
+                    threading.Event().wait(3)  # Check every 3 seconds (reduced frequency)
                 except Exception as e:
                     self.logger.error(f"Window detection error: {e}")
                     threading.Event().wait(5)
@@ -255,28 +258,36 @@ class ScreenCaptureGUI:
         detection_thread.start()
     
     def _update_window_list(self):
-        """Update the window list"""
+        """Optimized window list update"""
         try:
             windows = self.detector.find_messenger_windows()
             
-            # Clear current list
-            self.window_listbox.delete(0, tk.END)
+            # Only update if list actually changed
+            current_items = [self.window_listbox.get(i) for i in range(self.window_listbox.size())]
+            new_items = [f"{w.title} (PID: {w.pid})" for w in windows] if windows else ["No Messenger windows found"]
             
-            if not windows:
-                self.window_listbox.insert(tk.END, "No Messenger windows found")
-                self.window_listbox.itemconfig(0, {'fg': 'gray'})
-            else:
-                for i, window in enumerate(windows):
-                    display_text = f"{window.title} (PID: {window.pid})"
-                    self.window_listbox.insert(tk.END, display_text)
-                    
-                    # Color code by type
-                    if window.is_messenger:
-                        self.window_listbox.itemconfig(i, {'fg': 'green'})
-                    else:
-                        self.window_listbox.itemconfig(i, {'fg': 'blue'})
-            
-            self._log_message(f"Found {len(windows)} Messenger windows")
+            if current_items != new_items:
+                # Clear current list
+                self.window_listbox.delete(0, tk.END)
+                
+                if not windows:
+                    self.window_listbox.insert(tk.END, "No Messenger windows found")
+                    self.window_listbox.itemconfig(0, {'fg': 'gray'})
+                else:
+                    for i, window in enumerate(windows):
+                        display_text = f"{window.title} (PID: {window.pid})"
+                        self.window_listbox.insert(tk.END, display_text)
+                        
+                        # Color code by type
+                        if window.is_messenger:
+                            self.window_listbox.itemconfig(i, {'fg': 'green'})
+                        else:
+                            self.window_listbox.itemconfig(i, {'fg': 'blue'})
+                
+                # Only log if count changed significantly
+                if len(windows) != getattr(self, '_last_logged_count', 0):
+                    self._log_message(f"Found {len(windows)} Messenger windows")
+                    self._last_logged_count = len(windows)
             
         except Exception as e:
             self._log_message(f"Error updating window list: {e}", "ERROR")
