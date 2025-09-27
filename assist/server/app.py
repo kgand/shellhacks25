@@ -68,6 +68,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint with system information"""
+    return {
+        "message": "Simple Screen Capture API",
+        "version": "2.0.0",
+        "status": "running",
+        "endpoints": {
+            "health": "/health",
+            "sessions": "/sessions",
+            "files": "/files",
+            "upload": "/upload/{session_id}",
+            "process": "/process/{session_id}",
+            "stats": "/stats"
+        },
+        "documentation": "Visit /docs for API documentation"
+    }
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -271,6 +290,75 @@ async def process_session(session_id: str):
         
     except Exception as e:
         logger.error(f"Error processing session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Auto-process captured files endpoint
+@app.post("/auto-process")
+async def auto_process_captured_files():
+    """Automatically process captured files from capture_output directory"""
+    try:
+        capture_output_dir = "../screen_capture/capture_output"
+        if not os.path.exists(capture_output_dir):
+            raise HTTPException(status_code=404, detail="Capture output directory not found")
+        
+        # Create a new session for auto-processing
+        session_id = f"auto_session_{int(time.time())}"
+        state.capture_sessions[session_id] = {
+            "id": session_id,
+            "created_at": datetime.now().isoformat(),
+            "status": "processing",
+            "files": [],
+            "metadata": {"type": "auto_processed"}
+        }
+        
+        # Find all captured files
+        captured_files = []
+        for filename in os.listdir(capture_output_dir):
+            file_path = os.path.join(capture_output_dir, filename)
+            if os.path.isfile(file_path):
+                file_info = {
+                    "filename": filename,
+                    "path": file_path,
+                    "size": os.path.getsize(file_path),
+                    "uploaded_at": datetime.now().isoformat(),
+                    "type": "image/jpeg" if filename.endswith('.jpg') else "audio/wav" if filename.endswith('.wav') else "unknown"
+                }
+                captured_files.append(file_info)
+                state.capture_sessions[session_id]["files"].append(file_info)
+        
+        # Process the files
+        processed_dir = os.path.join(state.output_dir, session_id)
+        os.makedirs(processed_dir, exist_ok=True)
+        
+        processed_files = []
+        for file_info in captured_files:
+            file_path = file_info["path"]
+            if os.path.exists(file_path):
+                # Copy to processed directory
+                processed_path = os.path.join(processed_dir, file_info["filename"])
+                shutil.copy2(file_path, processed_path)
+                
+                processed_files.append({
+                    "original": file_info,
+                    "processed": processed_path,
+                    "processed_at": datetime.now().isoformat()
+                })
+        
+        # Update session status
+        state.capture_sessions[session_id]["status"] = "processed"
+        state.capture_sessions[session_id]["processed_files"] = processed_files
+        
+        logger.info(f"Auto-processed {len(processed_files)} captured files")
+        
+        return {
+            "status": "processed",
+            "session_id": session_id,
+            "processed_files": len(processed_files),
+            "message": f"Auto-processed {len(processed_files)} captured files successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error auto-processing captured files: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Statistics endpoints

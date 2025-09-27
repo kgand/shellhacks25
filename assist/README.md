@@ -11,6 +11,9 @@ A simplified, reliable screen capture system for Messenger Web conversations. Th
 - **Professional GUI**: Clean, modern interface
 - **File Management**: Organized output with timestamps
 - **No Async Complexity**: Synchronous operations for reliability
+- **Auto-Processing**: Automatically processes captured files with server
+- **Color Correction**: Fixes blue tint issues in captured frames
+- **Smart Cropping**: Focuses on video content, removes browser UI and taskbar
 
 ## Architecture
 
@@ -108,17 +111,22 @@ pip install -r server/requirements.txt
 
 ## API Endpoints
 
+### Root Endpoint
+```
+GET /                    # System information and available endpoints
+```
+
 ### Health Check
 ```
-GET /health
+GET /health              # System health status
 ```
 
 ### Session Management
 ```
-POST /sessions          # Create session
-GET /sessions           # List sessions
-GET /sessions/{id}      # Get session
-DELETE /sessions/{id}   # Delete session
+POST /sessions            # Create session
+GET /sessions            # List sessions
+GET /sessions/{id}       # Get session
+DELETE /sessions/{id}    # Delete session
 ```
 
 ### File Management
@@ -132,8 +140,9 @@ DELETE /files/{session_id}/{file}   # Delete file
 ### Processing
 ```
 POST /process/{session_id}  # Process session
-GET /stats                  # System statistics
-POST /cleanup               # Cleanup old files
+POST /auto-process         # Auto-process captured files
+GET /stats                 # System statistics
+POST /cleanup              # Cleanup old files
 ```
 
 ## Configuration

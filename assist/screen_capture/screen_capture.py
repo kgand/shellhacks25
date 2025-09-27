@@ -265,12 +265,13 @@ class SimpleScreenCapture:
     def _capture_frame(self) -> Optional[np.ndarray]:
         """Capture a single frame with smart video area detection"""
         try:
-            # Define capture region - try to focus on video content
+            # Define capture region - focus on video content area
+            # More aggressive cropping to avoid browser UI and taskbar
             monitor = {
-                "top": self.window.y + 50,  # Skip browser UI
-                "left": self.window.x + 20,  # Skip left padding
-                "width": self.window.width - 40,  # Remove side padding
-                "height": self.window.height - 100  # Remove browser UI and bottom
+                "top": self.window.y + 80,  # Skip more browser UI
+                "left": self.window.x + 30,  # Skip more left padding
+                "width": self.window.width - 60,  # Remove more side padding
+                "height": self.window.height - 150  # Remove more browser UI and taskbar
             }
             
             # Create a new MSS instance for each capture to avoid threading issues
@@ -321,8 +322,22 @@ class SimpleScreenCapture:
                     
                     return frame[y:y+h, x:x+w]
             
-            # If no good video area detected, return original frame
-            return frame
+            # If no good video area detected, try center cropping
+            # Focus on center 70% of the frame to avoid UI elements
+            center_x, center_y = width // 2, height // 2
+            crop_width = int(width * 0.7)
+            crop_height = int(height * 0.7)
+            
+            x = center_x - crop_width // 2
+            y = center_y - crop_height // 2
+            
+            # Ensure coordinates are within bounds
+            x = max(0, x)
+            y = max(0, y)
+            crop_width = min(crop_width, width - x)
+            crop_height = min(crop_height, height - y)
+            
+            return frame[y:y+crop_height, x:x+crop_width]
             
         except Exception as e:
             logger.warning(f"Error in video content detection: {e}")
@@ -379,15 +394,42 @@ class SimpleScreenCapture:
                 new_height = int(height * scale)
                 frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
             
-            # Convert to RGB if needed (JPEG expects RGB)
+            # Fix color space conversion - ensure proper BGR to RGB conversion
             if len(frame.shape) == 3 and frame.shape[2] == 3:
-                # Already BGR, convert to RGB for JPEG
+                # Convert BGR to RGB for proper color display
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Apply color correction to fix blue tint
+            frame = self._fix_color_tint(frame)
             
             return frame
             
         except Exception as e:
             logger.error(f"Error optimizing frame: {e}")
+            return frame
+    
+    def _fix_color_tint(self, frame: np.ndarray) -> np.ndarray:
+        """Fix color tint issues in captured frames"""
+        try:
+            # Convert to float for processing
+            frame_float = frame.astype(np.float32) / 255.0
+            
+            # Apply color balance correction
+            # Reduce blue channel dominance
+            frame_float[:, :, 2] = frame_float[:, :, 2] * 0.9  # Reduce blue
+            frame_float[:, :, 0] = frame_float[:, :, 0] * 1.1  # Enhance red
+            frame_float[:, :, 1] = frame_float[:, :, 1] * 1.05  # Slightly enhance green
+            
+            # Clamp values to valid range
+            frame_float = np.clip(frame_float, 0, 1)
+            
+            # Convert back to uint8
+            frame_corrected = (frame_float * 255).astype(np.uint8)
+            
+            return frame_corrected
+            
+        except Exception as e:
+            logger.warning(f"Error fixing color tint: {e}")
             return frame
 
 class SimpleWindowDetector:
@@ -488,6 +530,7 @@ class SimpleCaptureSystem:
         self.audio_capture = SimpleAudioCapture()
         self.is_capturing = False
         self.selected_window = None
+        self.server_url = "http://127.0.0.1:8000"
         
     def find_windows(self) -> List[WindowInfo]:
         """Find available Messenger windows"""
@@ -539,6 +582,26 @@ class SimpleCaptureSystem:
         
         self.is_capturing = False
         logger.info("Capture system stopped")
+        
+        # Auto-process captured files
+        self._auto_process_captured_files()
+    
+    def _auto_process_captured_files(self):
+        """Automatically process captured files with the server"""
+        try:
+            import requests
+            
+            # Call the auto-process endpoint
+            response = requests.post(f"{self.server_url}/auto-process", timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Auto-processed {result['processed_files']} files successfully")
+            else:
+                logger.warning(f"Auto-processing failed: {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Error auto-processing files: {e}")
     
     def get_status(self) -> dict:
         """Get current capture status"""
