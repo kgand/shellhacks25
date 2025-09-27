@@ -56,7 +56,16 @@ class ScreenDetector:
         ]
         self.capture_region = None
         self.is_capturing = False
-        self.screen_capture = mss.mss()
+        self.screen_capture = None
+        self._init_screen_capture()
+    
+    def _init_screen_capture(self):
+        """Initialize screen capture with proper threading"""
+        try:
+            self.screen_capture = mss.mss()
+        except Exception as e:
+            logger.error(f"Failed to initialize screen capture: {e}")
+            self.screen_capture = None
         
     def find_messenger_windows(self) -> List[WindowInfo]:
         """Find all Messenger-related windows"""
@@ -286,32 +295,39 @@ class ScreenCapture:
         """Main capture loop (runs in separate thread)"""
         frame_count = 0
         
-        while self.is_capturing:
-            try:
-                # Capture screen frame
-                if self.selected_window:
-                    frame = self._capture_screen_frame()
-                    if frame is not None:
-                        # Send frame to backend
-                        asyncio.run(self._send_frame(frame, frame_count))
-                        frame_count += 1
-                
-                # Capture audio data
-                audio_data = self.audio_capture.get_audio_data()
-                if audio_data:
-                    asyncio.run(self._send_audio(audio_data))
-                
-                # Small delay to prevent overwhelming the system
-                time.sleep(0.1)
-                
-            except Exception as e:
-                logger.error(f"Error in capture loop: {e}")
-                time.sleep(1)
+        # Create a new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            while self.is_capturing:
+                try:
+                    # Capture screen frame
+                    if self.selected_window:
+                        frame = self._capture_screen_frame()
+                        if frame is not None:
+                            # Send frame to backend
+                            loop.run_until_complete(self._send_frame(frame, frame_count))
+                            frame_count += 1
+                    
+                    # Capture audio data
+                    audio_data = self.audio_capture.get_audio_data()
+                    if audio_data:
+                        loop.run_until_complete(self._send_audio(audio_data))
+                    
+                    # Small delay to prevent overwhelming the system
+                    time.sleep(0.1)
+                    
+                except Exception as e:
+                    logger.error(f"Error in capture loop: {e}")
+                    time.sleep(1)
+        finally:
+            loop.close()
     
     def _capture_screen_frame(self) -> Optional[np.ndarray]:
         """Capture a single screen frame"""
         try:
-            if not self.selected_window:
+            if not self.selected_window or not self.detector.screen_capture:
                 return None
                 
             # Capture screen region
@@ -322,8 +338,10 @@ class ScreenCapture:
                 "height": self.selected_window.height
             }
             
-            screenshot = self.detector.screen_capture.grab(monitor)
-            frame = np.array(screenshot)
+            # Use a new MSS instance for each capture to avoid threading issues
+            with mss.mss() as mss_instance:
+                screenshot = mss_instance.grab(monitor)
+                frame = np.array(screenshot)
             
             # Convert BGRA to BGR
             if len(frame.shape) == 3 and frame.shape[2] == 4:
