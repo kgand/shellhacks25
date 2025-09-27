@@ -16,7 +16,7 @@ async def transcribe_audio(audio_frames: list[float]) -> dict[str, any]:
     }
 
 
-async def simulate_transcription(audio_frames: List[float]) -> str:
+async def simulate_transcription(audio_frames: list[float]) -> str:
     return "This is a simulated transcription of the audio content."
 
 
@@ -25,7 +25,7 @@ async def simulate_transcription(audio_frames: List[float]) -> str:
 # -------------------------------
 
 
-async def summarize_conversation(utterances: List[Dict]) -> Dict[str, Any]:
+async def summarize_conversation(utterances: list[dict]) -> dict[str, any]:
     if not utterances:
         return {"summary": "", "key_points": []}
 
@@ -38,11 +38,11 @@ async def summarize_conversation(utterances: List[Dict]) -> Dict[str, Any]:
     }
 
 
-async def generate_summary(utterances: List[Dict]) -> str:
+async def generate_summary(utterances: list[dict]) -> str:
     return "This is a simulated summary of the conversation."
 
 
-async def extract_key_points(utterances: List[Dict]) -> List[str]:
+async def extract_key_points(utterances: list[dict]) -> list[str]:
     return ["Key point 1", "Key point 2", "Key point 3"]
 
 
@@ -51,7 +51,7 @@ async def extract_key_points(utterances: List[Dict]) -> List[str]:
 # -------------------------------
 
 
-async def extract_actions(utterances: List[Dict]) -> Dict[str, Any]:
+async def extract_actions(utterances: list[dict]) -> dict[str, any]:
     if not utterances:
         return {"actions": []}
 
@@ -59,7 +59,7 @@ async def extract_actions(utterances: List[Dict]) -> Dict[str, Any]:
     return {"actions": actions, "timestamp": datetime.utcnow().isoformat()}
 
 
-async def _extract_actions_internal(utterances: List[Dict]) -> List[Dict]:
+async def _extract_actions_internal(utterances: list[dict]) -> list[dict]:
     return [
         {
             "description": "Follow up on discussed topic",
@@ -75,7 +75,7 @@ async def _extract_actions_internal(utterances: List[Dict]) -> List[Dict]:
 # -------------------------------
 
 
-async def extract_relationships(utterances: List[Dict]) -> Dict[str, Any]:
+async def extract_relationships(utterances: list[dict]) -> dict[str, any]:
     if not utterances:
         return {"relationships": []}
 
@@ -83,7 +83,7 @@ async def extract_relationships(utterances: List[Dict]) -> Dict[str, Any]:
     return {"relationships": relationships, "timestamp": datetime.utcnow().isoformat()}
 
 
-async def _extract_relationships_internal(utterances: List[Dict]) -> List[Dict]:
+async def _extract_relationships_internal(utterances: list[dict]) -> list[dict]:
     return [
         {
             "person1": "Alice",
@@ -99,7 +99,7 @@ async def _extract_relationships_internal(utterances: List[Dict]) -> List[Dict]:
 # -------------------------------
 
 
-async def store_insights(insights: Dict[str, Any]) -> bool:
+async def store_insights(insights: dict[str, any]) -> bool:
     """Store insights to Firestore DB (stub)"""
     # This will use your GOOGLE_APPLICATION_CREDENTIALS env variable for auth
     db = firestore.Client()

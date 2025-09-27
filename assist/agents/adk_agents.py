@@ -12,16 +12,9 @@ from datetime import datetime
 
 from agent_tools.tools import store_insights
 
-# ADK imports (these would be installed via pip install google-cloud-aiplatform[adk])
-from google.cloud import aiplatform
-from google.cloud.aiplatform import adk
-from google.cloud.aiplatform.adk import Agent, Task, MemoryBank
+from google.adk.agents import Agent
 
 logger = logging.getLogger(__name__)
-
-orchestrator = ADKOrchestrator()
-orchestrator.initialize()
-orchestrator.start()
 
 
 # -------------------------------
@@ -236,3 +229,8 @@ class AudioAgent(ADKAgent):
     async def process(self, audio_frames: List[float]) -> Dict[str, Any]:
         # Stub: replace with real transcription / audio analysis
         return {"message": "Processed audio frames", "count": len(audio_frames)}
+
+
+orchestrator = ADKOrchestrator()
+orchestrator.initialize()
+orchestrator.start()
