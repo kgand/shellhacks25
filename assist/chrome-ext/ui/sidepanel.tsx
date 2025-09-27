@@ -70,9 +70,9 @@ class MessengerAIAssistant {
     });
   }
 
-  private async checkBackendConnection() {
-    try {
-      const response = await fetch('http://localhost:8000/health');
+      private async checkBackendConnection() {
+        try {
+          const response = await fetch('http://127.0.0.1:8000/health');
       if (response.ok) {
         this.isConnected = true;
         this.updateConnectionStatus('Connected', 'Backend ready');

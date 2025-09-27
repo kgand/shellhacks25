@@ -13,7 +13,7 @@ from pathlib import Path
 
 class SystemTester:
     def __init__(self):
-        self.base_url = "http://localhost:8000"
+        self.base_url = "http://127.0.0.1:8000"
         self.results = {}
     
     async def test_backend_health(self):
@@ -45,7 +45,7 @@ class SystemTester:
         """Test WebSocket connection"""
         try:
             import websockets
-            async with websockets.connect(f"ws://localhost:8765/ingest") as websocket:
+            async with websockets.connect(f"ws://127.0.0.1:8765/ingest") as websocket:
                 # Send a test message
                 test_message = json.dumps({
                     "type": "test",
