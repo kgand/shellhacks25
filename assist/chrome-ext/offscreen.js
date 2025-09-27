@@ -72,15 +72,20 @@ class MediaCapture {
     }
   }
 
-  async startCapture(mediaStream) {
+  async startCapture(options) {
     try {
       await this.connectWebSocket();
       
-      this.mediaStream = mediaStream;
-      this.mediaRecorder = new MediaRecorder(mediaStream, {
-        mimeType: 'video/webm;codecs=opus',
-        audioBitsPerSecond: 128000,
-        videoBitsPerSecond: 1000000
+      // Get the media stream in the offscreen document
+      // For now, let's use getUserMedia for audio and create a simple test stream
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+      });
+      
+      this.mediaRecorder = new MediaRecorder(this.mediaStream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: options.bitrate * 1000 || 128000
       });
 
       this.mediaRecorder.ondataavailable = (event) => {
@@ -133,7 +138,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type === 'start-recording' && message.target === 'offscreen') {
     console.log('Starting capture in offscreen document...');
-    mediaCapture.startCapture(message.mediaStream)
+    mediaCapture.startCapture({
+      bitrate: message.bitrate,
+      muteMic: message.muteMic
+    })
       .then(() => {
         console.log('Capture started successfully');
         sendResponse({ success: true });

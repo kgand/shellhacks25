@@ -157,17 +157,6 @@ class MessengerAIAssistant {
                 return;
             }
 
-            // Request media stream
-            const stream = await new Promise((resolve, reject) => {
-                chrome.tabCapture.capture({ audio: true, video: true }, (stream) => {
-                    if (stream) {
-                        resolve(stream);
-                    } else {
-                        reject(new Error('Failed to capture media stream'));
-                    }
-                });
-            });
-            
             console.log('Creating offscreen document...');
             // Create offscreen document if it doesn't exist
             await chrome.offscreen.createDocument({
@@ -177,12 +166,11 @@ class MessengerAIAssistant {
             });
             console.log('Offscreen document created');
 
-            // Send stream to offscreen document
+            // Send recording options to offscreen document
             console.log('Sending message to offscreen document...');
             chrome.runtime.sendMessage({
                 type: 'start-recording',
                 target: 'offscreen',
-                mediaStream: stream,
                 bitrate: this.bitrate,
                 muteMic: this.isMuted
             });
