@@ -193,13 +193,17 @@ class SimpleCaptureGUI:
         self.settings_button = ttk.Button(button_frame, text="⚙️ Settings", command=self._show_settings)
         self.settings_button.grid(row=0, column=2, sticky=(tk.W, tk.E))
         
+        # Add process button
+        self.process_button = ttk.Button(button_frame, text="🔄 Process Files", command=self._process_captured_files)
+        self.process_button.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        
         # Progress bar
         self.progress = ttk.Progressbar(control_frame, mode='indeterminate')
-        self.progress.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
+        self.progress.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
         
         # Status info
         self.capture_info = ttk.Label(control_frame, text="Ready to capture", style='Info.TLabel')
-        self.capture_info.grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
+        self.capture_info.grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
     
     def _create_log_section(self, parent):
         """Create log section"""
@@ -384,6 +388,19 @@ class SimpleCaptureGUI:
             
         except Exception as e:
             self._log_message(f"System test failed: {e}", "ERROR")
+    
+    def _process_captured_files(self):
+        """Manually trigger processing of captured files"""
+        try:
+            self._log_message("Triggering manual processing of captured files...")
+            
+            # Call the auto-process method
+            self.capture_system._auto_process_captured_files()
+            
+            self._log_message("Manual processing completed", "SUCCESS")
+            
+        except Exception as e:
+            self._log_message(f"Error in manual processing: {e}", "ERROR")
     
     def _open_messenger(self):
         """Open Messenger in browser"""

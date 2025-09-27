@@ -297,9 +297,24 @@ async def process_session(session_id: str):
 async def auto_process_captured_files():
     """Automatically process captured files from capture_output directory"""
     try:
-        capture_output_dir = "../screen_capture/capture_output"
-        if not os.path.exists(capture_output_dir):
-            raise HTTPException(status_code=404, detail="Capture output directory not found")
+        # Try multiple possible paths for capture_output
+        possible_paths = [
+            "../screen_capture/capture_output",
+            "screen_capture/capture_output", 
+            "capture_output",
+            "../capture_output"
+        ]
+        
+        capture_output_dir = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                capture_output_dir = path
+                break
+        
+        if not capture_output_dir:
+            raise HTTPException(status_code=404, detail="Capture output directory not found in any expected location")
+        
+        logger.info(f"Found capture output directory: {capture_output_dir}")
         
         # Create a new session for auto-processing
         session_id = f"auto_session_{int(time.time())}"
@@ -308,7 +323,7 @@ async def auto_process_captured_files():
             "created_at": datetime.now().isoformat(),
             "status": "processing",
             "files": [],
-            "metadata": {"type": "auto_processed"}
+            "metadata": {"type": "auto_processed", "source_dir": capture_output_dir}
         }
         
         # Find all captured files
@@ -325,6 +340,16 @@ async def auto_process_captured_files():
                 }
                 captured_files.append(file_info)
                 state.capture_sessions[session_id]["files"].append(file_info)
+        
+        logger.info(f"Found {len(captured_files)} captured files to process")
+        
+        if not captured_files:
+            return {
+                "status": "no_files",
+                "session_id": session_id,
+                "processed_files": 0,
+                "message": "No captured files found to process"
+            }
         
         # Process the files
         processed_dir = os.path.join(state.output_dir, session_id)
@@ -360,6 +385,12 @@ async def auto_process_captured_files():
     except Exception as e:
         logger.error(f"Error auto-processing captured files: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Manual trigger for processing captured files
+@app.post("/trigger-process")
+async def trigger_process_captured_files():
+    """Manually trigger processing of captured files"""
+    return await auto_process_captured_files()
 
 # Statistics endpoints
 @app.get("/stats")

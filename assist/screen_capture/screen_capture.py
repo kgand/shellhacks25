@@ -590,6 +590,30 @@ class SimpleCaptureSystem:
         """Automatically process captured files with the server"""
         try:
             import requests
+            import os
+            
+            # Check if server is running
+            try:
+                health_response = requests.get(f"{self.server_url}/health", timeout=5)
+                if health_response.status_code != 200:
+                    logger.warning("Server is not running, skipping auto-processing")
+                    return
+            except:
+                logger.warning("Server is not accessible, skipping auto-processing")
+                return
+            
+            # Check if there are captured files to process
+            capture_output_dir = "capture_output"
+            if not os.path.exists(capture_output_dir):
+                logger.info("No capture output directory found")
+                return
+                
+            captured_files = [f for f in os.listdir(capture_output_dir) if f.endswith(('.jpg', '.wav'))]
+            if not captured_files:
+                logger.info("No captured files to process")
+                return
+            
+            logger.info(f"Found {len(captured_files)} captured files, processing...")
             
             # Call the auto-process endpoint
             response = requests.post(f"{self.server_url}/auto-process", timeout=30)
@@ -598,7 +622,7 @@ class SimpleCaptureSystem:
                 result = response.json()
                 logger.info(f"Auto-processed {result['processed_files']} files successfully")
             else:
-                logger.warning(f"Auto-processing failed: {response.status_code}")
+                logger.warning(f"Auto-processing failed: {response.status_code} - {response.text}")
                 
         except Exception as e:
             logger.error(f"Error auto-processing files: {e}")
