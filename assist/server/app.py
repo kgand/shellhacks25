@@ -95,12 +95,14 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for receiving audio/video data from Chrome extension"""
     await websocket.accept()
     state.connections.append(websocket)
+    print(f"🔗 WebSocket connection established! Total connections: {len(state.connections)}")
     logger.info(f"WebSocket connection established. Total connections: {len(state.connections)}")
     
     try:
         while True:
             # Receive data from client
             data = await websocket.receive_bytes()
+            print(f"📡 Received {len(data)} bytes of audio/video data")
             logger.info(f"Received {len(data)} bytes of audio/video data")
             
             # Process the data (simulate processing)

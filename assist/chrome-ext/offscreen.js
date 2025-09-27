@@ -14,7 +14,7 @@ class MediaCapture {
   async connectWebSocket() {
     return new Promise((resolve, reject) => {
       try {
-        this.websocket = new WebSocket('ws://127.0.0.1:8765/ingest');
+        this.websocket = new WebSocket('ws://127.0.0.1:8000/ingest');
         
         this.websocket.onopen = () => {
           console.log('WebSocket connected');
