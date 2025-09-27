@@ -5,10 +5,11 @@ A professional screen capture and AI processing system for Messenger Web convers
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Windows 10/11 or macOS 10.15+
-- Ollama installed and running
-- Audio drivers (for audio capture)
+- **Python 3.8+** (all platforms)
+- **Windows 10/11**, **macOS 10.15+**, or **Linux (Ubuntu/Debian)**
+- **Ollama** installed and running
+- **Audio drivers** (for audio capture)
+- **Browser** (Chrome, Firefox, Safari, or Edge)
 
 ### Installation
 
@@ -29,17 +30,10 @@ A professional screen capture and AI processing system for Messenger Web convers
    ollama pull qwen3:8b
    ```
 
-3. **Run setup**
+3. **Run cross-platform setup**
    ```bash
-   # Cross-platform setup
-   python setup.py
-   
-   # Or use platform-specific scripts
-   # Windows
-   start.bat
-   
-   # PowerShell
-   powershell -ExecutionPolicy Bypass -File start.ps1
+   cd assist
+   python setup_cross_platform.py
    ```
 
 4. **Start the application**
@@ -50,16 +44,22 @@ A professional screen capture and AI processing system for Messenger Web convers
 ## 🏗️ Architecture
 
 ```
-Python Screen Capture → FastAPI Backend → Ollama AI Processing → File Storage
+Cross-Platform Screen Capture → FastAPI Backend → Ollama AI Processing → File Storage
+├── Windows: Native Windows API
+├── macOS: Quartz/Cocoa Framework  
+└── Linux: X11 Window System
 ```
 
 ### Components
 
-1. **Screen Capture System** (`assist/screen_capture/`)
+1. **Cross-Platform Screen Capture System** (`assist/screen_capture/`)
    - Direct file-based audio/video capture
-   - Automatic Messenger window detection
+   - Cross-platform Messenger window detection
    - Professional GUI interface
    - Smart cropping and color correction
+   - **Windows**: Native Windows API integration
+   - **macOS**: Quartz and Cocoa framework integration
+   - **Linux**: X11 window system integration
 
 2. **Backend API Server** (`assist/server/`)
    - FastAPI REST API
@@ -96,12 +96,13 @@ assist/
 
 ## 🎯 Features
 
-### Screen Capture
+### Cross-Platform Screen Capture
 - **Direct File Output**: No websockets, saves directly to files
 - **Audio/Video Capture**: Simultaneous recording with optimization
-- **Window Detection**: Automatic Messenger window detection
+- **Cross-Platform Window Detection**: Automatic Messenger window detection
 - **Smart Cropping**: Focuses on video content, removes browser UI
 - **Color Correction**: Fixes blue tint issues in captured frames
+- **Platform-Specific Optimizations**: Native performance on all platforms
 
 ### AI Processing
 - **Real-time VLM Analysis**: Frame-by-frame visual understanding using gemma3:4b
@@ -165,6 +166,41 @@ curl http://localhost:8000/analysis-status
 ```
 
 ## 🔧 Configuration
+
+### Platform-Specific Setup
+
+#### Windows
+```bash
+# Install Windows-specific dependencies
+pip install pywin32 sounddevice
+
+# Run setup
+python setup_cross_platform.py
+```
+
+#### macOS
+```bash
+# Install macOS-specific dependencies
+pip install pyobjc-framework-Quartz pyobjc-framework-Cocoa sounddevice
+
+# Grant accessibility permissions (if needed)
+# System Preferences > Security & Privacy > Privacy > Accessibility
+
+# Run setup
+python setup_cross_platform.py
+```
+
+#### Linux
+```bash
+# Install Linux-specific dependencies
+pip install python3-xlib sounddevice
+
+# Ensure X11 is running
+echo $DISPLAY
+
+# Run setup
+python setup_cross_platform.py
+```
 
 ### Ollama Setup
 
@@ -244,6 +280,45 @@ python assist/server/test_ollama_client.py
 
 ## 🐛 Troubleshooting
 
+### Platform-Specific Issues
+
+#### Windows
+1. **No Messenger windows found**
+   - Ensure Messenger Web is open
+   - Check Windows Defender settings
+   - Try running as administrator
+
+2. **Audio capture fails**
+   - Check audio drivers
+   - Verify microphone permissions
+   - Test with `python -c "import sounddevice; print(sounddevice.query_devices())"`
+
+#### macOS
+1. **Accessibility permissions required**
+   - Go to System Preferences > Security & Privacy > Privacy > Accessibility
+   - Add your terminal or Python to allowed apps
+
+2. **Window detection fails**
+   - Ensure app has screen recording permissions
+   - Check System Preferences > Security & Privacy > Privacy > Screen Recording
+
+3. **Audio capture fails**
+   - Check microphone permissions
+   - Verify audio input devices
+
+#### Linux
+1. **X11 display not found**
+   - Ensure X11 is running: `echo $DISPLAY`
+   - Check if running in WSL (may need X11 forwarding)
+
+2. **Audio capture fails**
+   - Check ALSA/PulseAudio configuration
+   - Verify audio device permissions
+
+3. **Window detection fails**
+   - Ensure X11 session is active
+   - Check window manager compatibility
+
 ### Common Issues
 
 1. **No Messenger windows found**
@@ -318,12 +393,21 @@ For issues and questions:
 
 ## 📝 Changelog
 
+### v2.1.0 - Cross-Platform Release
+- ✅ **Full Windows Support**: Native Windows API integration
+- ✅ **Full macOS Support**: Quartz and Cocoa framework integration
+- ✅ **Full Linux Support**: X11 window system integration
+- ✅ **Cross-Platform Audio**: Universal audio capture
+- ✅ **Cross-Platform Screen Capture**: MSS with platform optimizations
+- ✅ **Platform Detection**: Automatic platform detection and configuration
+- ✅ **Professional Setup**: Cross-platform installation script
+- ✅ **Comprehensive Testing**: Platform-specific testing framework
+
 ### v2.0.0 - Professional Release
 - Complete rewrite with file-based capture
 - Removed websocket dependencies
 - Added direct audio capture
 - Professional GUI and backend
 - Better error handling and logging
-- Cross-platform support
 - AI processing pipeline
 - Memory storage integration
