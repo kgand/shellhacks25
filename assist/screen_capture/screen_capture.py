@@ -263,14 +263,14 @@ class SimpleScreenCapture:
             logger.error(f"Error in capture loop: {e}")
     
     def _capture_frame(self) -> Optional[np.ndarray]:
-        """Capture a single frame with proper error handling"""
+        """Capture a single frame with smart video area detection"""
         try:
-            # Define capture region
+            # Define capture region - try to focus on video content
             monitor = {
-                "top": self.window.y,
-                "left": self.window.x,
-                "width": self.window.width,
-                "height": self.window.height
+                "top": self.window.y + 50,  # Skip browser UI
+                "left": self.window.x + 20,  # Skip left padding
+                "width": self.window.width - 40,  # Remove side padding
+                "height": self.window.height - 100  # Remove browser UI and bottom
             }
             
             # Create a new MSS instance for each capture to avoid threading issues
@@ -282,11 +282,51 @@ class SimpleScreenCapture:
             if len(frame.shape) == 3 and frame.shape[2] == 4:
                 frame = frame[:, :, :3]
             
+            # Try to detect and crop to video content area
+            frame = self._crop_to_video_content(frame)
+            
             return frame
             
         except Exception as e:
             logger.error(f"Error capturing frame: {e}")
             return None
+    
+    def _crop_to_video_content(self, frame: np.ndarray) -> np.ndarray:
+        """Smart cropping to focus on video content"""
+        try:
+            height, width = frame.shape[:2]
+            
+            # Convert to grayscale for edge detection
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # Detect edges to find video boundaries
+            edges = cv2.Canny(gray, 50, 150)
+            
+            # Find contours to detect video area
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                # Find the largest contour (likely the video area)
+                largest_contour = max(contours, key=cv2.contourArea)
+                x, y, w, h = cv2.boundingRect(largest_contour)
+                
+                # Only crop if we found a reasonable video area
+                if w > width * 0.3 and h > height * 0.3:  # At least 30% of original size
+                    # Add some padding around the detected area
+                    padding = 20
+                    x = max(0, x - padding)
+                    y = max(0, y - padding)
+                    w = min(width - x, w + 2 * padding)
+                    h = min(height - y, h + 2 * padding)
+                    
+                    return frame[y:y+h, x:x+w]
+            
+            # If no good video area detected, return original frame
+            return frame
+            
+        except Exception as e:
+            logger.warning(f"Error in video content detection: {e}")
+            return frame
     
     def _save_frame(self, frame: np.ndarray):
         """Optimized frame saving with compression and error handling"""

@@ -52,6 +52,16 @@ test:
 	@cd assist/screen_capture && python -c "import gui; print('✅ GUI imports successful')"
 	@echo "✅ All tests passed"
 
+# Test AI integration
+test-ai:
+	@echo "🤖 Testing AI integration..."
+	python test_ai_integration.py
+
+# Monitor system in real-time
+monitor:
+	@echo "📊 Starting system monitor..."
+	python monitor_system.py
+
 # Clean build artifacts
 clean:
 	@echo "🧹 Cleaning build artifacts..."
