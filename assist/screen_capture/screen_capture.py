@@ -1,6 +1,7 @@
 """
-Simplified Screen Capture System
+Cross-Platform Screen Capture System
 Direct audio and video capture without websockets
+Supports Windows, macOS, and Linux
 """
 
 import cv2
@@ -18,6 +19,14 @@ import json
 import psutil
 import pyautogui
 
+# Cross-platform imports
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
+from platform_utils import platform_detector
+from window_detector import CrossPlatformWindowDetector, WindowInfo
+from audio_capture import CrossPlatformAudioCapture
+from screen_capture import CrossPlatformScreenCapture, CaptureRegion
+
 # Audio capture imports
 try:
     import pyaudio
@@ -30,27 +39,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class WindowInfo:
-    """Information about a detected window"""
-    pid: int
-    title: str
-    x: int
-    y: int
-    width: int
-    height: int
-    is_messenger: bool = False
-
-class SimpleAudioCapture:
-    """Simplified audio capture using system audio"""
+class SimpleAudioCapture(CrossPlatformAudioCapture):
+    """Cross-platform audio capture using system audio"""
     
     def __init__(self, sample_rate: int = 44100, channels: int = 2):
-        self.sample_rate = sample_rate
-        self.channels = channels
-        self.is_recording = False
-        self.audio_data = []
-        self.recording_thread = None
-        self.audio_available = AUDIO_AVAILABLE
+        super().__init__(sample_rate, channels)
         
     def start_recording(self, output_file: str = None):
         """Start audio recording to file"""
@@ -146,17 +139,11 @@ class SimpleAudioCapture:
         except Exception as e:
             logger.error(f"Audio recording error: {e}")
 
-class SimpleScreenCapture:
-    """Simplified screen capture using MSS only"""
+class SimpleScreenCapture(CrossPlatformScreenCapture):
+    """Cross-platform screen capture using MSS and platform-specific optimizations"""
     
     def __init__(self):
-        self.is_capturing = False
-        self.capture_thread = None
-        self.frame_count = 0
-        self.output_dir = "capture_output"
-        
-        # Create output directory
-        os.makedirs(self.output_dir, exist_ok=True)
+        super().__init__()
         
     def start_capture(self, window: WindowInfo, fps: int = 15, crop_region=None):
         """Start screen capture for a specific window"""
@@ -424,17 +411,11 @@ class SimpleScreenCapture:
         # Color correction was causing blue/orange shifting issues
         return frame
 
-class SimpleWindowDetector:
-    """Simplified window detection"""
+class SimpleWindowDetector(CrossPlatformWindowDetector):
+    """Cross-platform window detection"""
     
     def __init__(self):
-        self.messenger_keywords = [
-            'messenger.com',
-            'facebook.com/messages',
-            'messenger',
-            'facebook messenger',
-            'messenger call'
-        ]
+        super().__init__()
     
     def find_messenger_windows(self) -> List[WindowInfo]:
         """Find Messenger windows"""
@@ -514,7 +495,7 @@ class SimpleWindowDetector:
         return any(keyword in title_lower for keyword in self.messenger_keywords)
 
 class SimpleCaptureSystem:
-    """Main capture system that coordinates audio and video"""
+    """Cross-platform capture system that coordinates audio and video"""
     
     def __init__(self):
         self.window_detector = SimpleWindowDetector()
@@ -524,6 +505,9 @@ class SimpleCaptureSystem:
         self.selected_window = None
         self.server_url = "http://127.0.0.1:8000"
         self.crop_region = None  # Store crop region (x, y, width, height)
+        
+        # Log platform information
+        logger.info(f"Initialized capture system for {platform_detector.get_platform_name()}")
         
     def find_windows(self) -> List[WindowInfo]:
         """Find available Messenger windows"""
@@ -536,7 +520,7 @@ class SimpleCaptureSystem:
     
     def set_crop_region(self, x: int, y: int, width: int, height: int):
         """Set the crop region for frame capture"""
-        self.crop_region = (x, y, width, height)
+        self.crop_region = CaptureRegion(x, y, width, height)
         logger.info(f"Crop region set: x={x}, y={y}, width={width}, height={height}")
     
     def get_crop_region(self):

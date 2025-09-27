@@ -862,10 +862,16 @@ class SimpleCaptureGUI:
     def _open_output_folder(self):
         """Open output folder"""
         try:
+            import sys
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
+            from platform_utils import platform_detector
+            
             output_dir = os.path.abspath("capture_output")
             if os.path.exists(output_dir):
-                os.startfile(output_dir)
-                self._log_message(f"Opened output folder: {output_dir}")
+                if platform_detector.open_file_manager(output_dir):
+                    self._log_message(f"Opened output folder: {output_dir}")
+                else:
+                    self._log_message("Could not open output folder", "ERROR")
             else:
                 self._log_message("Output folder not found", "ERROR")
         except Exception as e:

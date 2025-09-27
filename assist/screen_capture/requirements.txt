@@ -4,7 +4,19 @@ psutil==5.9.6
 Pillow==10.1.0
 mss==9.0.1
 numpy==1.24.3
-pywin32==306
 sounddevice==0.4.6
 requests==2.31.0
-# pyaudio==0.2.11  # Optional - requires PortAudio on Windows
+
+# Platform-specific dependencies
+# Windows
+pywin32==306; sys_platform == "win32"
+
+# macOS
+pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
+
+# Linux
+python3-xlib>=0.15; sys_platform == "linux"
+
+# Audio dependencies (optional)
+# pyaudio==0.2.11  # Requires PortAudio on all platforms

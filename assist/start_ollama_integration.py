@@ -14,6 +14,10 @@ from pathlib import Path
 import logging
 import requests
 
+# Add utils to path for cross-platform support
+sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
+from platform_utils import platform_detector
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,6 +29,9 @@ class OllamaIntegrationLauncher:
         self.backend_process = None
         self.gui_process = None
         self.is_running = False
+        
+        # Log platform information
+        logger.info(f"Initializing for {platform_detector.get_platform_name()}")
         
     def check_ollama_installation(self):
         """Check if Ollama is installed and running"""
