@@ -56,8 +56,9 @@ def main():
         print("⚠️  No .env file found in assist folder")
     
     # Check for required variables (but don't fail if missing in simplified mode)
+    import os as os_module
     required_vars = ['GOOGLE_PROJECT_ID', 'GEMINI_API_KEY']
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    missing_vars = [var for var in required_vars if not os_module.getenv(var)]
     
     if missing_vars:
         print(f"⚠️  Optional environment variables missing: {', '.join(missing_vars)} (simplified mode)")
@@ -80,8 +81,8 @@ def main():
         
         try:
             # Change to server directory and start uvicorn
-            import os
-            os.chdir("assist/server")
+            import os as os_module
+            os_module.chdir("assist/server")
             subprocess.run([
                 sys.executable, "-m", "uvicorn", 
                 "app_simple:app", 
