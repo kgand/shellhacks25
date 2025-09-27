@@ -1,33 +1,33 @@
-// Side Panel TypeScript Component
+// Side Panel JavaScript Component
 class MessengerAIAssistant {
-    private isRecording = false;
-    private isConnected = false;
-    private consentGiven = false;
-    private bitrate = 128;
-    private isMuted = false;
-    private elements: any = {};
-
     constructor() {
+        this.isRecording = false;
+        this.isConnected = false;
+        this.consentGiven = false;
+        this.bitrate = 128;
+        this.isMuted = false;
+        this.elements = {};
+
         this.initializeUI();
         this.setupEventListeners();
         this.checkBackendConnection();
     }
 
-    private initializeUI() {
+    initializeUI() {
         // Get DOM elements
         this.elements = {
-            consentToggle: document.getElementById('consentToggle') as HTMLElement,
-            captureBtn: document.getElementById('captureBtn') as HTMLButtonElement,
-            captureBtnText: document.getElementById('captureBtnText') as HTMLElement,
-            muteToggle: document.getElementById('muteToggle') as HTMLElement,
-            bitrateSlider: document.getElementById('bitrateSlider') as HTMLInputElement,
-            bitrateValue: document.getElementById('bitrateValue') as HTMLElement,
-            statusText: document.getElementById('statusText') as HTMLElement,
-            statusIndicator: document.getElementById('statusIndicator') as HTMLElement,
-            connectionStatus: document.getElementById('connectionStatus') as HTMLElement,
-            connectionIndicator: document.getElementById('connectionIndicator') as HTMLElement,
-            connectionDetails: document.getElementById('connectionDetails') as HTMLElement,
-            activityList: document.getElementById('activityList') as HTMLElement
+            consentToggle: document.getElementById('consentToggle'),
+            captureBtn: document.getElementById('captureBtn'),
+            captureBtnText: document.getElementById('captureBtnText'),
+            muteToggle: document.getElementById('muteToggle'),
+            bitrateSlider: document.getElementById('bitrateSlider'),
+            bitrateValue: document.getElementById('bitrateValue'),
+            statusText: document.getElementById('statusText'),
+            statusIndicator: document.getElementById('statusIndicator'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            connectionIndicator: document.getElementById('connectionIndicator'),
+            connectionDetails: document.getElementById('connectionDetails'),
+            activityList: document.getElementById('activityList')
         };
 
         // Initialize UI state
@@ -35,7 +35,7 @@ class MessengerAIAssistant {
         this.updateStatus('info', 'Ready to capture');
     }
 
-    private setupEventListeners() {
+    setupEventListeners() {
         // Consent toggle
         if (this.elements.consentToggle) {
             console.log('Consent toggle found, adding event listener');
@@ -50,32 +50,37 @@ class MessengerAIAssistant {
         }
 
         // Capture button
-        this.elements.captureBtn?.addEventListener('click', () => {
-            if (this.isRecording) {
-                this.stopCapture();
-            } else {
-                this.startCapture();
-            }
-        });
+        if (this.elements.captureBtn) {
+            this.elements.captureBtn.addEventListener('click', () => {
+                if (this.isRecording) {
+                    this.stopCapture();
+                } else {
+                    this.startCapture();
+                }
+            });
+        }
 
         // Mute toggle
-        this.elements.muteToggle?.addEventListener('click', () => {
-            this.isMuted = !this.isMuted;
-            this.elements.muteToggle.classList.toggle('active', this.isMuted);
-        });
+        if (this.elements.muteToggle) {
+            this.elements.muteToggle.addEventListener('click', () => {
+                this.isMuted = !this.isMuted;
+                this.elements.muteToggle.classList.toggle('active', this.isMuted);
+            });
+        }
 
         // Bitrate slider
-        this.elements.bitrateSlider?.addEventListener('input', (e: Event) => {
-            this.bitrate = parseInt((e.target as HTMLInputElement).value);
-            if (this.elements.bitrateValue) {
-                this.elements.bitrateValue.textContent = `${this.bitrate} kbps`;
-            }
-        });
+        if (this.elements.bitrateSlider) {
+            this.elements.bitrateSlider.addEventListener('input', (e) => {
+                this.bitrate = parseInt(e.target.value);
+                if (this.elements.bitrateValue) {
+                    this.elements.bitrateValue.textContent = `${this.bitrate} kbps`;
+                }
+            });
+        }
     }
 
-    private async checkBackendConnection() {
+    async checkBackendConnection() {
         try {
-            // Use Chrome extension API to make the request
             const response = await fetch('http://127.0.0.1:8000/health', {
                 method: 'GET',
                 headers: {
@@ -99,7 +104,7 @@ class MessengerAIAssistant {
         }
     }
 
-    private updateConnectionStatus(status: string, details: string) {
+    updateConnectionStatus(status, details) {
         if (this.elements.connectionStatus) {
             this.elements.connectionStatus.textContent = status;
         }
@@ -120,7 +125,7 @@ class MessengerAIAssistant {
         }
     }
 
-    private updateCaptureButton() {
+    updateCaptureButton() {
         const canCapture = this.consentGiven && this.isConnected;
         if (this.elements.captureBtn) {
             this.elements.captureBtn.disabled = !canCapture;
@@ -131,19 +136,19 @@ class MessengerAIAssistant {
                 this.elements.captureBtnText.textContent = 'Stop Capture';
             }
             if (this.elements.captureBtn) {
-                this.elements.captureBtn.className = 'btn btn-error btn-lg w-full mb-4';
+                this.elements.captureBtn.className = 'btn btn-error';
             }
         } else {
             if (this.elements.captureBtnText) {
                 this.elements.captureBtnText.textContent = 'Start Capture';
             }
             if (this.elements.captureBtn) {
-                this.elements.captureBtn.className = 'btn btn-primary btn-lg w-full mb-4';
+                this.elements.captureBtn.className = 'btn btn-primary';
             }
         }
     }
 
-    private async startCapture() {
+    async startCapture() {
         try {
             // Validate we're on Messenger
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -153,7 +158,7 @@ class MessengerAIAssistant {
             }
 
             // Request media stream
-            const stream = await new Promise<MediaStream>((resolve, reject) => {
+            const stream = await new Promise((resolve, reject) => {
                 chrome.tabCapture.capture({ audio: true, video: true }, (stream) => {
                     if (stream) {
                         resolve(stream);
@@ -166,7 +171,7 @@ class MessengerAIAssistant {
             // Create offscreen document if it doesn't exist
             await chrome.offscreen.createDocument({
                 url: 'offscreen.html',
-                reasons: ['USER_MEDIA' as chrome.offscreen.Reason],
+                reasons: ['USER_MEDIA'],
                 justification: 'A/V capture & encoding'
             });
 
@@ -186,11 +191,11 @@ class MessengerAIAssistant {
 
         } catch (error) {
             console.error('Failed to start capture:', error);
-            this.updateStatus('error', `Failed to start: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.updateStatus('error', `Failed to start: ${error.message || 'Unknown error'}`);
         }
     }
 
-    private async stopCapture() {
+    async stopCapture() {
         try {
             chrome.runtime.sendMessage({
                 type: 'stop-recording',
@@ -207,11 +212,11 @@ class MessengerAIAssistant {
 
         } catch (error) {
             console.error('Failed to stop capture:', error);
-            this.updateStatus('error', `Failed to stop: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.updateStatus('error', `Failed to stop: ${error.message || 'Unknown error'}`);
         }
     }
 
-    private updateStatus(type: 'info' | 'success' | 'error', message: string) {
+    updateStatus(type, message) {
         if (this.elements.statusText) {
             this.elements.statusText.textContent = message;
         }
@@ -235,7 +240,7 @@ class MessengerAIAssistant {
         }
     }
 
-    private addActivity(message: string) {
+    addActivity(message) {
         if (!this.elements.activityList) return;
         
         const timestamp = new Date().toLocaleTimeString();

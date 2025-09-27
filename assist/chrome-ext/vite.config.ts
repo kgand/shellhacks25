@@ -17,12 +17,13 @@ export default defineConfig({
     },
     copyPublicDir: false
   },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.')
-      }
-    },
-    define: {
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, '.')
     }
+  },
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+  },
+  plugins: []
 });
