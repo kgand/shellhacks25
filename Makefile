@@ -20,7 +20,7 @@ help:
 # Development server
 dev:
 	@echo "🚀 Starting development server..."
-	cd assist/server && uvicorn app_simple:app --host 127.0.0.1 --port 8000 --reload
+	cd assist/server && uvicorn app_full:app --host 127.0.0.1 --port 8000 --reload
 
 # Build Chrome extension
 chrome-build:
