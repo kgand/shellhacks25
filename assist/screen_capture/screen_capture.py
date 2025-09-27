@@ -97,19 +97,45 @@ class SimpleAudioCapture:
                 logger.error(f"Error saving audio: {e}")
     
     def _record_audio(self):
-        """Record audio in separate thread"""
+        """Optimized audio recording with performance monitoring"""
         try:
+            audio_stats = {
+                'chunks_recorded': 0,
+                'total_bytes': 0,
+                'last_log_time': time.time()
+            }
+            
             def audio_callback(indata, frames, time, status):
                 if status:
                     logger.warning(f"Audio callback status: {status}")
+                
                 if self.is_recording:
-                    self.audio_data.append(indata.copy())
+                    # Optimize audio data handling
+                    audio_chunk = indata.copy()
+                    self.audio_data.append(audio_chunk)
+                    
+                    # Update stats
+                    audio_stats['chunks_recorded'] += 1
+                    audio_stats['total_bytes'] += len(audio_chunk.tobytes())
+                    
+                    # Log performance every 10 seconds
+                    current_time = time.time()
+                    if current_time - audio_stats['last_log_time'] > 10:
+                        chunks_per_sec = audio_stats['chunks_recorded'] / (current_time - audio_stats['last_log_time'])
+                        bytes_per_sec = audio_stats['total_bytes'] / (current_time - audio_stats['last_log_time'])
+                        logger.info(f"Audio: {chunks_per_sec:.1f} chunks/sec, {bytes_per_sec/1024:.1f} KB/sec")
+                        
+                        # Reset stats
+                        audio_stats['chunks_recorded'] = 0
+                        audio_stats['total_bytes'] = 0
+                        audio_stats['last_log_time'] = current_time
             
             with sd.InputStream(
                 callback=audio_callback,
                 channels=self.channels,
                 samplerate=self.sample_rate,
-                dtype='int16'
+                dtype='int16',
+                blocksize=1024  # Optimize block size
             ):
                 while self.is_recording:
                     time.sleep(0.1)
@@ -170,24 +196,63 @@ class SimpleScreenCapture:
         logger.info(f"Screen capture stopped. Captured {self.frame_count} frames")
     
     def _capture_loop(self):
-        """Main capture loop"""
+        """Optimized capture loop with performance monitoring"""
         frame_interval = 1.0 / self.fps
+        performance_stats = {
+            'frame_times': [],
+            'save_times': [],
+            'total_frames': 0,
+            'dropped_frames': 0
+        }
         
         try:
             while self.is_capturing:
-                start_time = time.time()
+                loop_start = time.time()
                 
                 # Capture screen frame
+                capture_start = time.time()
                 frame = self._capture_frame()
+                capture_time = time.time() - capture_start
+                
                 if frame is not None:
                     # Save frame to file
+                    save_start = time.time()
                     self._save_frame(frame)
+                    save_time = time.time() - save_start
+                    
+                    # Update performance stats
+                    performance_stats['frame_times'].append(capture_time)
+                    performance_stats['save_times'].append(save_time)
+                    performance_stats['total_frames'] += 1
                     self.frame_count += 1
+                    
+                    # Keep only last 30 frame times for rolling average
+                    if len(performance_stats['frame_times']) > 30:
+                        performance_stats['frame_times'] = performance_stats['frame_times'][-30:]
+                        performance_stats['save_times'] = performance_stats['save_times'][-30:]
+                else:
+                    performance_stats['dropped_frames'] += 1
                 
-                # Maintain frame rate
-                elapsed = time.time() - start_time
+                # Adaptive sleep based on performance
+                elapsed = time.time() - loop_start
                 sleep_time = max(0, frame_interval - elapsed)
+                
+                # If we're consistently behind, reduce frame rate
+                if len(performance_stats['frame_times']) > 10:
+                    avg_frame_time = sum(performance_stats['frame_times']) / len(performance_stats['frame_times'])
+                    if avg_frame_time > frame_interval * 0.8:  # If taking >80% of frame time
+                        sleep_time = max(0, sleep_time * 0.5)  # Reduce sleep time
+                
                 time.sleep(sleep_time)
+                
+                # Log performance every 100 frames
+                if self.frame_count % 100 == 0:
+                    avg_capture = sum(performance_stats['frame_times'][-10:]) / min(10, len(performance_stats['frame_times']))
+                    avg_save = sum(performance_stats['save_times'][-10:]) / min(10, len(performance_stats['save_times']))
+                    logger.info(f"Performance: {self.frame_count} frames, "
+                              f"avg capture: {avg_capture:.3f}s, "
+                              f"avg save: {avg_save:.3f}s, "
+                              f"dropped: {performance_stats['dropped_frames']}")
                 
         except Exception as e:
             logger.error(f"Error in capture loop: {e}")
@@ -218,23 +283,66 @@ class SimpleScreenCapture:
             return None
     
     def _save_frame(self, frame: np.ndarray):
-        """Save frame to file"""
+        """Optimized frame saving with compression and error handling"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             filename = f"{self.output_dir}/frame_{self.frame_count:06d}_{timestamp}.jpg"
             
-            # Encode and save frame
-            success, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            # Optimize frame before encoding
+            optimized_frame = self._optimize_frame(frame)
+            
+            # Encode with optimized settings
+            encode_params = [
+                cv2.IMWRITE_JPEG_QUALITY, 85,
+                cv2.IMWRITE_JPEG_OPTIMIZE, 1,
+                cv2.IMWRITE_JPEG_PROGRESSIVE, 1
+            ]
+            
+            success, buffer = cv2.imencode('.jpg', optimized_frame, encode_params)
             if success:
-                with open(filename, 'wb') as f:
-                    f.write(buffer)
-                
-                # Log every 30 frames
-                if self.frame_count % 30 == 0:
-                    logger.info(f"Saved frame {self.frame_count}: {filename}")
+                # Write to file with error handling
+                try:
+                    with open(filename, 'wb') as f:
+                        f.write(buffer)
+                    
+                    # Log every 30 frames with file size
+                    if self.frame_count % 30 == 0:
+                        file_size = len(buffer)
+                        logger.info(f"Saved frame {self.frame_count}: {filename} ({file_size} bytes)")
+                        
+                except IOError as e:
+                    logger.error(f"IO Error saving frame {self.frame_count}: {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error saving frame {self.frame_count}: {e}")
+            else:
+                logger.warning(f"Failed to encode frame {self.frame_count}")
                     
         except Exception as e:
             logger.error(f"Error saving frame: {e}")
+    
+    def _optimize_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Optimize frame for better compression and performance"""
+        try:
+            # Resize if frame is too large
+            height, width = frame.shape[:2]
+            max_width = 1920  # Limit width for performance
+            
+            if width > max_width:
+                scale = max_width / width
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            
+            # Convert to RGB if needed (JPEG expects RGB)
+            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                # Already BGR, convert to RGB for JPEG
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            return frame
+            
+        except Exception as e:
+            logger.error(f"Error optimizing frame: {e}")
+            return frame
 
 class SimpleWindowDetector:
     """Simplified window detection"""

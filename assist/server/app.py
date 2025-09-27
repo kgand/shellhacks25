@@ -1,22 +1,19 @@
 """
-FastAPI backend for Messenger AI Assistant
-Clean, working implementation with all services
+Simplified FastAPI backend for file-based screen capture
+No websockets, direct file handling
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import asyncio
+from fastapi.responses import JSONResponse, FileResponse
+import os
+import time
 import logging
 from typing import Dict, List, Optional
-import os
-from dotenv import load_dotenv
-import json
-import time
 from datetime import datetime
-
-# Load environment variables
-load_dotenv()
+import json
+import shutil
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,48 +21,41 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Messenger AI Assistant API",
-    description="Backend for capturing and analyzing Messenger conversations",
-    version="1.0.0"
+    title="Simple Screen Capture API",
+    description="Backend for file-based screen capture system",
+    version="2.0.0"
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Global state
-class ServiceState:
+class SimpleServiceState:
     def __init__(self):
-        self.memory_store = True
-        self.gemini_live = True
-        self.adk_orchestrator = True
-        self.websocket_ingest = True
-        self.revive_api = True
-        self.connections = []
-        self.memories = []
+        self.capture_sessions = {}
+        self.uploaded_files = []
         self.is_initialized = False
+        self.upload_dir = "uploads"
+        self.output_dir = "processed"
+        
+        # Create directories
+        os.makedirs(self.upload_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
 
-state = ServiceState()
+state = SimpleServiceState()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize all services"""
-    logger.info("🚀 Starting Messenger AI Assistant Backend...")
-    
-    # Initialize all services
-    state.memory_store = True
-    state.gemini_live = True
-    state.adk_orchestrator = True
-    state.websocket_ingest = True
-    state.revive_api = True
+    """Initialize services"""
+    logger.info("🚀 Starting Simple Screen Capture Backend...")
     state.is_initialized = True
-    
-    logger.info("✅ All services initialized successfully")
+    logger.info("✅ Backend initialized successfully")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -78,174 +68,314 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
+        "version": "2.0.0",
         "services": {
-            "memory_store": state.memory_store,
-            "gemini_live": state.gemini_live,
-            "adk_orchestrator": state.adk_orchestrator,
-            "websocket_ingest": state.websocket_ingest,
-            "revive_api": state.revive_api
+            "file_upload": True,
+            "file_processing": True,
+            "session_management": True
         },
-        "connections": len(state.connections),
-        "memories_count": len(state.memories)
+        "active_sessions": len(state.capture_sessions),
+        "uploaded_files": len(state.uploaded_files)
     }
 
-# WebSocket endpoint for audio/video ingest
-@app.websocket("/ingest")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for receiving audio/video data from screen capture"""
-    await websocket.accept()
-    state.connections.append(websocket)
-    print(f"🔗 WebSocket connection established! Total connections: {len(state.connections)}")
-    logger.info(f"WebSocket connection established. Total connections: {len(state.connections)}")
+# Session management endpoints
+@app.post("/sessions")
+async def create_session(session_data: dict):
+    """Create a new capture session"""
+    try:
+        session_id = f"session_{int(time.time())}"
+        state.capture_sessions[session_id] = {
+            "id": session_id,
+            "created_at": datetime.now().isoformat(),
+            "status": "active",
+            "files": [],
+            "metadata": session_data
+        }
+        
+        logger.info(f"Created session: {session_id}")
+        return {
+            "session_id": session_id,
+            "status": "created",
+            "message": "Session created successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error creating session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Get session information"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return state.capture_sessions[session_id]
+
+@app.get("/sessions")
+async def list_sessions():
+    """List all sessions"""
+    return {
+        "sessions": list(state.capture_sessions.values()),
+        "total": len(state.capture_sessions)
+    }
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """Delete a session"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Clean up session files
+    session = state.capture_sessions[session_id]
+    for file_info in session.get("files", []):
+        file_path = file_info.get("path")
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                logger.warning(f"Error deleting file {file_path}: {e}")
+    
+    del state.capture_sessions[session_id]
+    logger.info(f"Deleted session: {session_id}")
+    
+    return {"status": "deleted", "message": "Session deleted successfully"}
+
+# File upload endpoints
+@app.post("/upload/{session_id}")
+async def upload_file(session_id: str, file: UploadFile = File(...)):
+    """Upload a file to a session"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
     
     try:
-        while True:
-            # Receive data from client (now JSON messages from screen capture)
-            message = await websocket.receive_text()
-            data = json.loads(message)
-            
-            message_type = data.get("type", "unknown")
-            timestamp = data.get("timestamp", datetime.now().isoformat())
-            
-            if message_type == "video_frame":
-                print(f"📹 Received video frame {data.get('frame_count', 0)}")
-                logger.info(f"Received video frame {data.get('frame_count', 0)}")
-                
-                # Process video frame
-                frame_data = bytes.fromhex(data.get("data", ""))
-                memory_entry = {
-                    "id": f"frame_{int(time.time())}_{data.get('frame_count', 0)}",
-                    "timestamp": timestamp,
-                    "data_size": len(frame_data),
-                    "type": "video_frame",
-                    "frame_count": data.get("frame_count", 0)
-                }
-                state.memories.append(memory_entry)
-                
-            elif message_type == "audio_chunk":
-                print(f"🎵 Received audio chunk")
-                logger.info(f"Received audio chunk")
-                
-                # Process audio chunk
-                audio_data = bytes.fromhex(data.get("data", ""))
-                memory_entry = {
-                    "id": f"audio_{int(time.time())}",
-                    "timestamp": timestamp,
-                    "data_size": len(audio_data),
-                    "type": "audio_chunk"
-                }
-                state.memories.append(memory_entry)
-            
-            # Echo back confirmation
-            await websocket.send_text(json.dumps({
-                "status": "processed",
-                "type": message_type,
-                "timestamp": timestamp,
-                "memory_id": memory_entry["id"]
-            }))
-            
-    except WebSocketDisconnect:
-        logger.info("WebSocket connection closed")
-        if websocket in state.connections:
-            state.connections.remove(websocket)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        if websocket in state.connections:
-            state.connections.remove(websocket)
-        await websocket.close()
-
-# Revive API endpoint
-@app.post("/revive")
-async def revive_memories(request: dict):
-    """Revive memories based on a cue"""
-    try:
-        cue = request.get("cue", "")
-        limit = request.get("limit", 10)
+        # Create session-specific directory
+        session_dir = os.path.join(state.upload_dir, session_id)
+        os.makedirs(session_dir, exist_ok=True)
         
-        # Filter memories based on cue
-        relevant_memories = []
-        for memory in state.memories:
-            if cue.lower() in str(memory).lower():
-                relevant_memories.append(memory)
+        # Save file
+        file_path = os.path.join(session_dir, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
         
-        # Limit results
-        relevant_memories = relevant_memories[:limit]
+        # Update session
+        file_info = {
+            "filename": file.filename,
+            "path": file_path,
+            "size": os.path.getsize(file_path),
+            "uploaded_at": datetime.now().isoformat(),
+            "type": file.content_type or "unknown"
+        }
+        
+        state.capture_sessions[session_id]["files"].append(file_info)
+        state.uploaded_files.append(file_info)
+        
+        logger.info(f"Uploaded file: {file.filename} to session {session_id}")
         
         return {
-            "cue": cue,
-            "memories": relevant_memories,
-            "summary": f"Found {len(relevant_memories)} memories related to '{cue}'",
-            "total_found": len(relevant_memories)
+            "status": "uploaded",
+            "filename": file.filename,
+            "size": file_info["size"],
+            "session_id": session_id
         }
         
     except Exception as e:
-        logger.error(f"Revive API error: {e}")
+        logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Memory statistics endpoint
-@app.get("/memories/{user_id}/statistics")
-async def get_memory_statistics(user_id: str):
-    """Get memory statistics for a user"""
-    user_memories = [m for m in state.memories if m.get("user_id") == user_id or not m.get("user_id")]
+@app.get("/files/{session_id}")
+async def list_session_files(session_id: str):
+    """List files in a session"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
     
     return {
-        "user_id": user_id,
-        "total_memories": len(user_memories),
-        "total_utterances": len([m for m in user_memories if m.get("type") == "utterance"]),
-        "total_relationships": len([m for m in user_memories if m.get("type") == "relationship"]),
-        "last_updated": datetime.now().isoformat()
+        "session_id": session_id,
+        "files": state.capture_sessions[session_id]["files"],
+        "total": len(state.capture_sessions[session_id]["files"])
     }
 
-# Memory search endpoint
-@app.get("/memories/{user_id}/search")
-async def search_memories(user_id: str, query: str = "", limit: int = 10):
-    """Search memories for a user"""
-    user_memories = [m for m in state.memories if m.get("user_id") == user_id or not m.get("user_id")]
+@app.get("/download/{session_id}/{filename}")
+async def download_file(session_id: str, filename: str):
+    """Download a file from a session"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
     
-    # Simple text search
-    if query:
-        filtered_memories = [m for m in user_memories if query.lower() in str(m).lower()]
-    else:
-        filtered_memories = user_memories
+    session = state.capture_sessions[session_id]
+    file_info = None
+    
+    for file in session["files"]:
+        if file["filename"] == filename:
+            file_info = file
+            break
+    
+    if not file_info:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_path = file_info["path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=file_info.get("type", "application/octet-stream")
+    )
+
+# Processing endpoints
+@app.post("/process/{session_id}")
+async def process_session(session_id: str):
+    """Process files in a session"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        session = state.capture_sessions[session_id]
+        files = session["files"]
+        
+        # Create processed directory
+        processed_dir = os.path.join(state.output_dir, session_id)
+        os.makedirs(processed_dir, exist_ok=True)
+        
+        processed_files = []
+        
+        for file_info in files:
+            file_path = file_info["path"]
+            if os.path.exists(file_path):
+                # Copy to processed directory
+                processed_path = os.path.join(processed_dir, file_info["filename"])
+                shutil.copy2(file_path, processed_path)
+                
+                processed_files.append({
+                    "original": file_info,
+                    "processed": processed_path,
+                    "processed_at": datetime.now().isoformat()
+                })
+        
+        # Update session status
+        session["status"] = "processed"
+        session["processed_files"] = processed_files
+        
+        logger.info(f"Processed session {session_id}: {len(processed_files)} files")
+        
+        return {
+            "status": "processed",
+            "session_id": session_id,
+            "processed_files": len(processed_files),
+            "message": "Session processed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Statistics endpoints
+@app.get("/stats")
+async def get_statistics():
+    """Get system statistics"""
+    total_files = sum(len(session["files"]) for session in state.capture_sessions.values())
+    total_size = 0
+    
+    for session in state.capture_sessions.values():
+        for file_info in session["files"]:
+            total_size += file_info.get("size", 0)
     
     return {
-        "user_id": user_id,
-        "query": query,
-        "memories": filtered_memories[:limit],
-        "total_found": len(filtered_memories)
+        "total_sessions": len(state.capture_sessions),
+        "total_files": total_files,
+        "total_size_bytes": total_size,
+        "total_size_mb": round(total_size / (1024 * 1024), 2),
+        "active_sessions": len([s for s in state.capture_sessions.values() if s["status"] == "active"]),
+        "processed_sessions": len([s for s in state.capture_sessions.values() if s["status"] == "processed"])
     }
 
-# Get specific memory
-@app.get("/memories/{memory_id}")
-async def get_memory(memory_id: str):
-    """Get a specific memory by ID"""
-    for memory in state.memories:
-        if memory.get("id") == memory_id:
-            return memory
-    
-    raise HTTPException(status_code=404, detail="Memory not found")
+# Cleanup endpoints
+@app.post("/cleanup")
+async def cleanup_old_files():
+    """Clean up old files and sessions"""
+    try:
+        current_time = time.time()
+        cleanup_threshold = 24 * 60 * 60  # 24 hours
+        
+        cleaned_sessions = []
+        cleaned_files = 0
+        
+        for session_id, session in list(state.capture_sessions.items()):
+            session_time = datetime.fromisoformat(session["created_at"]).timestamp()
+            if current_time - session_time > cleanup_threshold:
+                # Clean up session files
+                for file_info in session.get("files", []):
+                    file_path = file_info.get("path")
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            cleaned_files += 1
+                        except Exception as e:
+                            logger.warning(f"Error deleting file {file_path}: {e}")
+                
+                del state.capture_sessions[session_id]
+                cleaned_sessions.append(session_id)
+        
+        logger.info(f"Cleanup completed: {len(cleaned_sessions)} sessions, {cleaned_files} files")
+        
+        return {
+            "status": "cleaned",
+            "sessions_removed": len(cleaned_sessions),
+            "files_removed": cleaned_files,
+            "message": "Cleanup completed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Add memory endpoint
-@app.post("/memories")
-async def add_memory(memory: dict):
-    """Add a new memory"""
-    memory["id"] = f"memory_{int(time.time())}"
-    memory["timestamp"] = datetime.now().isoformat()
-    state.memories.append(memory)
+# File management endpoints
+@app.get("/files")
+async def list_all_files():
+    """List all uploaded files"""
+    all_files = []
+    for session in state.capture_sessions.values():
+        all_files.extend(session["files"])
     
     return {
-        "status": "created",
-        "memory_id": memory["id"],
-        "message": "Memory added successfully"
+        "files": all_files,
+        "total": len(all_files)
     }
 
-# Get all memories
-@app.get("/memories")
-async def get_all_memories(limit: int = 50):
-    """Get all memories"""
+@app.delete("/files/{session_id}/{filename}")
+async def delete_file(session_id: str, filename: str):
+    """Delete a specific file"""
+    if session_id not in state.capture_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = state.capture_sessions[session_id]
+    file_info = None
+    file_index = None
+    
+    for i, file in enumerate(session["files"]):
+        if file["filename"] == filename:
+            file_info = file
+            file_index = i
+            break
+    
+    if not file_info:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Delete file from disk
+    file_path = file_info["path"]
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            logger.warning(f"Error deleting file {file_path}: {e}")
+    
+    # Remove from session
+    del session["files"][file_index]
+    
+    logger.info(f"Deleted file: {filename} from session {session_id}")
+    
     return {
-        "memories": state.memories[-limit:],
-        "total": len(state.memories)
+        "status": "deleted",
+        "filename": filename,
+        "session_id": session_id
     }
 
 if __name__ == "__main__":

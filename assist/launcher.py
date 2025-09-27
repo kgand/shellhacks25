@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Launcher for Messenger AI Assistant
-Starts both backend server and screen capture GUI
+Simplified Launcher for Screen Capture System
+No websockets, direct file-based capture
 """
 
 import subprocess
@@ -17,8 +17,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class MessengerAILauncher:
-    """Launcher for the Messenger AI Assistant"""
+class SimpleLauncher:
+    """Simplified launcher for the screen capture system"""
     
     def __init__(self):
         self.backend_process = None
@@ -39,24 +39,19 @@ class MessengerAILauncher:
         try:
             # Check screen capture dependencies
             import cv2
-            import pyautogui
             import mss
-            import pyaudio
+            import sounddevice
             logger.info("✅ Screen capture dependencies found")
         except ImportError:
             logger.error("❌ Screen capture dependencies missing. Installing...")
             subprocess.run([sys.executable, "-m", "pip", "install", "-r", "screen_capture/requirements.txt"])
             
     def start_backend(self):
-        """Start the FastAPI backend server"""
+        """Start the simplified backend server"""
         try:
-            logger.info("🚀 Starting backend server...")
+            logger.info("🚀 Starting simplified backend server...")
             self.backend_process = subprocess.Popen([
-                sys.executable, "-m", "uvicorn", 
-                "app:app", 
-                "--host", "127.0.0.1", 
-                "--port", "8000", 
-                "--reload"
+                sys.executable, "simple_app.py"
             ], cwd="server")
             
             # Wait for backend to start
@@ -80,11 +75,11 @@ class MessengerAILauncher:
             return False
     
     def start_gui(self):
-        """Start the screen capture GUI"""
+        """Start the simplified screen capture GUI"""
         try:
-            logger.info("🖥️ Starting screen capture GUI...")
+            logger.info("🖥️ Starting simplified screen capture GUI...")
             self.gui_process = subprocess.Popen([
-                sys.executable, "gui.py"
+                sys.executable, "simple_gui.py"
             ], cwd="screen_capture")
             
             logger.info("✅ Screen capture GUI started")
@@ -96,8 +91,8 @@ class MessengerAILauncher:
     
     def run(self):
         """Run the complete system"""
-        print("🚀 Messenger AI Assistant Launcher")
-        print("=" * 40)
+        print("🚀 Simple Screen Capture System Launcher")
+        print("=" * 50)
         
         # Check if we're in the right directory
         if not Path("assist").exists():
@@ -121,10 +116,15 @@ class MessengerAILauncher:
             self.cleanup()
             sys.exit(1)
         
-        print("\n✅ Messenger AI Assistant is running!")
+        print("\n✅ Simple Screen Capture System is running!")
         print("   Backend: http://127.0.0.1:8000")
         print("   Health: http://127.0.0.1:8000/health")
         print("   GUI: Screen capture window should be open")
+        print("\nFeatures:")
+        print("   • Direct file-based capture (no websockets)")
+        print("   • Simplified audio/video capture")
+        print("   • Automatic Messenger window detection")
+        print("   • Files saved to 'capture_output' folder")
         print("\nPress Ctrl+C to stop all services")
         
         try:
@@ -159,7 +159,7 @@ class MessengerAILauncher:
 
 def main():
     """Main function"""
-    launcher = MessengerAILauncher()
+    launcher = SimpleLauncher()
     launcher.run()
 
 if __name__ == "__main__":
