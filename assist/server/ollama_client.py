@@ -20,8 +20,8 @@ class OllamaClient:
     
     def __init__(self, host: str = "http://localhost:11434"):
         self.host = host
-        self.vlm_model = "qwen2.5vl:7b"  # Vision Language Model
-        self.llm_model = "llama3:8b"     # Text Language Model
+        self.vlm_model = "gemma3:4b"     # Vision Language Model
+        self.llm_model = "qwen3:8b"      # Text Language Model
         self.timeout = 300  # 5 minutes timeout
         
     def _call_ollama_api(self, model: str, prompt: str, image_base64: str = None) -> Dict[str, Any]:
