@@ -92,7 +92,7 @@ async def health_check():
 # WebSocket endpoint for audio/video ingest
 @app.websocket("/ingest")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for receiving audio/video data from Chrome extension"""
+    """WebSocket endpoint for receiving audio/video data from screen capture"""
     await websocket.accept()
     state.connections.append(websocket)
     print(f"🔗 WebSocket connection established! Total connections: {len(state.connections)}")
@@ -100,25 +100,46 @@ async def websocket_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Receive data from client
-            data = await websocket.receive_bytes()
-            print(f"📡 Received {len(data)} bytes of audio/video data")
-            logger.info(f"Received {len(data)} bytes of audio/video data")
+            # Receive data from client (now JSON messages from screen capture)
+            message = await websocket.receive_text()
+            data = json.loads(message)
             
-            # Process the data (simulate processing)
-            timestamp = datetime.now().isoformat()
-            memory_entry = {
-                "id": f"memory_{int(time.time())}",
-                "timestamp": timestamp,
-                "data_size": len(data),
-                "type": "audio_video_chunk"
-            }
-            state.memories.append(memory_entry)
+            message_type = data.get("type", "unknown")
+            timestamp = data.get("timestamp", datetime.now().isoformat())
+            
+            if message_type == "video_frame":
+                print(f"📹 Received video frame {data.get('frame_count', 0)}")
+                logger.info(f"Received video frame {data.get('frame_count', 0)}")
+                
+                # Process video frame
+                frame_data = bytes.fromhex(data.get("data", ""))
+                memory_entry = {
+                    "id": f"frame_{int(time.time())}_{data.get('frame_count', 0)}",
+                    "timestamp": timestamp,
+                    "data_size": len(frame_data),
+                    "type": "video_frame",
+                    "frame_count": data.get("frame_count", 0)
+                }
+                state.memories.append(memory_entry)
+                
+            elif message_type == "audio_chunk":
+                print(f"🎵 Received audio chunk")
+                logger.info(f"Received audio chunk")
+                
+                # Process audio chunk
+                audio_data = bytes.fromhex(data.get("data", ""))
+                memory_entry = {
+                    "id": f"audio_{int(time.time())}",
+                    "timestamp": timestamp,
+                    "data_size": len(audio_data),
+                    "type": "audio_chunk"
+                }
+                state.memories.append(memory_entry)
             
             # Echo back confirmation
             await websocket.send_text(json.dumps({
                 "status": "processed",
-                "size": len(data),
+                "type": message_type,
                 "timestamp": timestamp,
                 "memory_id": memory_entry["id"]
             }))
