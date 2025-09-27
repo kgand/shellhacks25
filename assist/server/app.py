@@ -104,7 +104,10 @@ async def root():
                 "summarize": "/summarize",
                 "start_analysis": "/start-analysis/{session_id}",
                 "stop_analysis": "/stop-analysis",
-                "analysis_status": "/analysis-status"
+                "analysis_status": "/analysis-status",
+                "realtime_outputs": "/realtime-outputs",
+                "latest_realtime_output": "/latest-realtime-output",
+                "clear_realtime_outputs": "/clear-realtime-outputs"
             },
             "audio": {
                 "process_audio": "/process-audio",
@@ -672,6 +675,62 @@ async def get_analysis_status():
         
     except Exception as e:
         logger.error(f"Error getting analysis status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/realtime-outputs")
+async def get_realtime_outputs(limit: int = 50):
+    """Get recent real-time analysis outputs"""
+    try:
+        outputs = state.realtime_analyzer.get_realtime_outputs(limit)
+        
+        return {
+            "status": "success",
+            "outputs": outputs,
+            "count": len(outputs),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting real-time outputs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/latest-realtime-output")
+async def get_latest_realtime_output():
+    """Get the latest real-time analysis output"""
+    try:
+        output = state.realtime_analyzer.get_latest_realtime_output()
+        
+        if output:
+            return {
+                "status": "success",
+                "output": output,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "no_output",
+                "message": "No real-time output available yet",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"Error getting latest real-time output: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/clear-realtime-outputs")
+async def clear_realtime_outputs():
+    """Clear all real-time outputs"""
+    try:
+        state.realtime_analyzer.clear_realtime_outputs()
+        
+        return {
+            "status": "cleared",
+            "message": "Real-time outputs cleared successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error clearing real-time outputs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ollama-status")

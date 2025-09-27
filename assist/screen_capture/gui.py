@@ -456,6 +456,10 @@ class SimpleCaptureGUI:
         self.ai_analysis_button = ttk.Button(button_frame, text="🤖 Start AI Analysis", command=self._start_ai_analysis)
         self.ai_analysis_button.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         
+        # Add real-time output button
+        self.realtime_output_button = ttk.Button(button_frame, text="📊 View Real-time Output", command=self._show_realtime_output)
+        self.realtime_output_button.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        
         # Progress bar
         self.progress = ttk.Progressbar(control_frame, mode='indeterminate')
         self.progress.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
@@ -854,6 +858,153 @@ class SimpleCaptureGUI:
         except Exception as e:
             self._log_message(f"Error displaying summary: {e}", "ERROR")
     
+    def _show_realtime_output(self):
+        """Show real-time output window"""
+        try:
+            # Create real-time output window
+            self.realtime_window = tk.Toplevel(self.root)
+            self.realtime_window.title("Real-time AI Analysis Output")
+            self.realtime_window.geometry("800x600")
+            self.realtime_window.resizable(True, True)
+            self.realtime_window.transient(self.root)
+            
+            # Center the window
+            self.realtime_window.update_idletasks()
+            x = (self.realtime_window.winfo_screenwidth() // 2) - (800 // 2)
+            y = (self.realtime_window.winfo_screenheight() // 2) - (600 // 2)
+            self.realtime_window.geometry(f"800x600+{x}+{y}")
+            
+            # Create main frame
+            main_frame = ttk.Frame(self.realtime_window, padding="15")
+            main_frame.pack(fill=tk.BOTH, expand=True)
+            main_frame.rowconfigure(1, weight=1)
+            main_frame.columnconfigure(0, weight=1)
+            
+            # Header
+            header_frame = ttk.Frame(main_frame)
+            header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+            header_frame.columnconfigure(1, weight=1)
+            
+            title_label = ttk.Label(header_frame, text="Real-time AI Analysis Output", 
+                                 font=('Segoe UI', 14, 'bold'))
+            title_label.grid(row=0, column=0, sticky=tk.W)
+            
+            # Control buttons
+            button_frame = ttk.Frame(header_frame)
+            button_frame.grid(row=0, column=1, sticky=tk.E)
+            
+            refresh_button = ttk.Button(button_frame, text="🔄 Refresh", command=self._refresh_realtime_output)
+            refresh_button.grid(row=0, column=0, padx=(0, 10))
+            
+            clear_button = ttk.Button(button_frame, text="🗑️ Clear", command=self._clear_realtime_output)
+            clear_button.grid(row=0, column=1)
+            
+            # Output display area
+            output_frame = ttk.LabelFrame(main_frame, text="Live Analysis Output", padding="10")
+            output_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
+            output_frame.rowconfigure(0, weight=1)
+            output_frame.columnconfigure(0, weight=1)
+            
+            # Text area with scrollbar
+            text_frame = ttk.Frame(output_frame)
+            text_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+            text_frame.rowconfigure(0, weight=1)
+            text_frame.columnconfigure(0, weight=1)
+            
+            self.realtime_text = scrolledtext.ScrolledText(text_frame, height=20, font=('Consolas', 10), 
+                                                         wrap=tk.WORD, state=tk.DISABLED)
+            self.realtime_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+            
+            # Status bar
+            status_frame = ttk.Frame(main_frame)
+            status_frame.grid(row=2, column=0, sticky=(tk.W, tk.E))
+            status_frame.columnconfigure(0, weight=1)
+            
+            self.realtime_status = ttk.Label(status_frame, text="Ready to display real-time output", 
+                                           font=('Segoe UI', 9))
+            self.realtime_status.grid(row=0, column=0, sticky=tk.W)
+            
+            # Auto-refresh checkbox
+            self.auto_refresh_var = tk.BooleanVar(value=True)
+            auto_refresh_check = ttk.Checkbutton(status_frame, text="Auto-refresh", 
+                                               variable=self.auto_refresh_var)
+            auto_refresh_check.grid(row=0, column=1, sticky=tk.E)
+            
+            # Load initial data
+            self._refresh_realtime_output()
+            
+            # Start auto-refresh if enabled
+            if self.auto_refresh_var.get():
+                self._start_auto_refresh()
+                
+        except Exception as e:
+            self._log_message(f"Error showing real-time output: {e}", "ERROR")
+            messagebox.showerror("Error", f"Error showing real-time output: {e}")
+    
+    def _refresh_realtime_output(self):
+        """Refresh real-time output display"""
+        try:
+            import requests
+            
+            # Get real-time outputs from server
+            response = requests.get("http://127.0.0.1:8000/realtime-outputs?limit=100", timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                outputs = data.get("outputs", [])
+                
+                # Clear and update text
+                self.realtime_text.config(state=tk.NORMAL)
+                self.realtime_text.delete(1.0, tk.END)
+                
+                if outputs:
+                    for output in outputs:
+                        timestamp = output.get("timestamp", "Unknown")
+                        output_type = output.get("type", "unknown")
+                        content = output.get("content", "No content")
+                        
+                        # Format output
+                        formatted_output = f"[{timestamp}] {output_type.upper()}: {content}\n\n"
+                        self.realtime_text.insert(tk.END, formatted_output)
+                    
+                    self.realtime_text.see(tk.END)
+                    self.realtime_status.config(text=f"Displaying {len(outputs)} real-time outputs")
+                else:
+                    self.realtime_text.insert(tk.END, "No real-time outputs available yet.\nStart AI analysis to see live output.")
+                    self.realtime_status.config(text="No real-time outputs available")
+                
+                self.realtime_text.config(state=tk.DISABLED)
+                
+            else:
+                self.realtime_status.config(text=f"Error fetching outputs: {response.status_code}")
+                
+        except Exception as e:
+            self.realtime_status.config(text=f"Error: {e}")
+    
+    def _clear_realtime_output(self):
+        """Clear real-time outputs"""
+        try:
+            import requests
+            
+            response = requests.post("http://127.0.0.1:8000/clear-realtime-outputs", timeout=5)
+            
+            if response.status_code == 200:
+                self._refresh_realtime_output()
+                self._log_message("Real-time outputs cleared", "SUCCESS")
+            else:
+                self._log_message(f"Error clearing outputs: {response.status_code}", "ERROR")
+                
+        except Exception as e:
+            self._log_message(f"Error clearing real-time outputs: {e}", "ERROR")
+    
+    def _start_auto_refresh(self):
+        """Start auto-refresh for real-time output"""
+        if hasattr(self, 'realtime_window') and self.realtime_window.winfo_exists():
+            if self.auto_refresh_var.get():
+                self._refresh_realtime_output()
+                # Schedule next refresh
+                self.realtime_window.after(3000, self._start_auto_refresh)  # Refresh every 3 seconds
+    
     def _open_messenger(self):
         """Open Messenger in browser"""
         webbrowser.open("https://messenger.com")
@@ -862,16 +1013,10 @@ class SimpleCaptureGUI:
     def _open_output_folder(self):
         """Open output folder"""
         try:
-            import sys
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
-            from platform_utils import platform_detector
-            
             output_dir = os.path.abspath("capture_output")
             if os.path.exists(output_dir):
-                if platform_detector.open_file_manager(output_dir):
-                    self._log_message(f"Opened output folder: {output_dir}")
-                else:
-                    self._log_message("Could not open output folder", "ERROR")
+                os.startfile(output_dir)
+                self._log_message(f"Opened output folder: {output_dir}")
             else:
                 self._log_message("Output folder not found", "ERROR")
         except Exception as e:

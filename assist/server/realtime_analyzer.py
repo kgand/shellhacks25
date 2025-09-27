@@ -36,6 +36,12 @@ class RealtimeAnalyzer:
         self.summary = ""
         self.comprehensive_summary = None
         
+        # Real-time output tracking
+        self.realtime_outputs = []  # Store real-time analysis outputs
+        self.latest_frame_analysis = None
+        self.latest_audio_analysis = None
+        self.analysis_stream_active = False
+        
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -46,6 +52,7 @@ class RealtimeAnalyzer:
         # Callbacks
         self.on_frame_analyzed: Optional[Callable] = None
         self.on_summary_updated: Optional[Callable] = None
+        self.on_realtime_output: Optional[Callable] = None
         
     def start_analysis(self, session_id: str) -> bool:
         """
@@ -74,6 +81,12 @@ class RealtimeAnalyzer:
             self.summary = ""
             self.comprehensive_summary = None
             
+            # Reset real-time output tracking
+            self.realtime_outputs = []
+            self.latest_frame_analysis = None
+            self.latest_audio_analysis = None
+            self.analysis_stream_active = True
+            
             # Start analysis thread
             self.analysis_thread = threading.Thread(
                 target=self._analysis_loop, 
@@ -95,6 +108,7 @@ class RealtimeAnalyzer:
             return
         
         self.is_analyzing = False
+        self.analysis_stream_active = False
         
         if self.analysis_thread:
             self.analysis_thread.join()
@@ -201,16 +215,36 @@ class RealtimeAnalyzer:
                 }
                 
                 self.frame_analysis_results.append(result)
+                self.latest_frame_analysis = result
                 
                 # Keep only last 50 results to avoid memory issues
                 if len(self.frame_analysis_results) > 50:
                     self.frame_analysis_results = self.frame_analysis_results[-50:]
                 
-                # Call callback if set
+                # Create real-time output entry
+                realtime_output = {
+                    "type": "frame_analysis",
+                    "timestamp": datetime.now().isoformat(),
+                    "content": analysis,
+                    "frame_file": latest_frame,
+                    "session_id": getattr(self, 'session_id', None)
+                }
+                
+                self.realtime_outputs.append(realtime_output)
+                
+                # Keep only last 100 real-time outputs
+                if len(self.realtime_outputs) > 100:
+                    self.realtime_outputs = self.realtime_outputs[-100:]
+                
+                # Call callbacks if set
                 if self.on_frame_analyzed:
                     self.on_frame_analyzed(result)
                 
+                if self.on_realtime_output:
+                    self.on_realtime_output(realtime_output)
+                
                 logger.info(f"Analyzed frame: {latest_frame}")
+                logger.info(f"Real-time output: {analysis[:100]}...")
                 
         except Exception as e:
             logger.error(f"Error analyzing frames: {e}")
@@ -236,6 +270,7 @@ class RealtimeAnalyzer:
             
             if audio_result["status"] == "success":
                 self.audio_analysis_results.append(audio_result)
+                self.latest_audio_analysis = audio_result
                 
                 # Update combined transcription
                 if audio_result.get("transcription"):
@@ -245,7 +280,27 @@ class RealtimeAnalyzer:
                         self.audio_transcription = f"--- {latest_audio} ---\n"
                     self.audio_transcription += audio_result["transcription"]
                 
+                # Create real-time output entry for audio
+                realtime_output = {
+                    "type": "audio_analysis",
+                    "timestamp": datetime.now().isoformat(),
+                    "content": audio_result.get("transcription", "Audio processed"),
+                    "audio_file": latest_audio,
+                    "session_id": getattr(self, 'session_id', None)
+                }
+                
+                self.realtime_outputs.append(realtime_output)
+                
+                # Keep only last 100 real-time outputs
+                if len(self.realtime_outputs) > 100:
+                    self.realtime_outputs = self.realtime_outputs[-100:]
+                
+                # Call real-time output callback if set
+                if self.on_realtime_output:
+                    self.on_realtime_output(realtime_output)
+                
                 logger.info(f"Processed audio file: {latest_audio}")
+                logger.info(f"Real-time audio output: {audio_result.get('transcription', 'Audio processed')[:100]}...")
                 
         except Exception as e:
             logger.error(f"Error processing audio: {e}")
@@ -322,8 +377,23 @@ class RealtimeAnalyzer:
             "audio_transcription": self.audio_transcription,
             "summary": self.summary,
             "comprehensive_summary": self.comprehensive_summary,
+            "realtime_outputs_count": len(self.realtime_outputs),
+            "latest_realtime_output": self.realtime_outputs[-1] if self.realtime_outputs else None,
+            "analysis_stream_active": self.analysis_stream_active,
             "timestamp": datetime.now().isoformat()
         }
+    
+    def get_realtime_outputs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent real-time outputs"""
+        return self.realtime_outputs[-limit:] if self.realtime_outputs else []
+    
+    def get_latest_realtime_output(self) -> Optional[Dict[str, Any]]:
+        """Get the latest real-time output"""
+        return self.realtime_outputs[-1] if self.realtime_outputs else None
+    
+    def clear_realtime_outputs(self):
+        """Clear real-time outputs"""
+        self.realtime_outputs = []
     
     def save_analysis_results(self, session_id: str):
         """Save analysis results to file"""
@@ -351,5 +421,7 @@ class RealtimeAnalyzer:
             self.on_frame_analyzed = callback
         elif callback_type == "summary_updated":
             self.on_summary_updated = callback
+        elif callback_type == "realtime_output":
+            self.on_realtime_output = callback
         else:
             logger.warning(f"Unknown callback type: {callback_type}")
