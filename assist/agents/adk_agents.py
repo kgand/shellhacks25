@@ -9,11 +9,14 @@ from datetime import datetime
 import json
 import os
 
+from google.cloud import firestore
+from datetime import datetime
+
 # ADK imports (these would be installed via pip install google-cloud-aiplatform[adk])
-try:
-    from google.cloud import aiplatform
-    from google.cloud.aiplatform import adk
-    from google.cloud.aiplatform.adk import Agent, Task, MemoryBank
+from google.cloud import aiplatform
+from google.cloud.aiplatform import adk
+from google.cloud.aiplatform.adk import Agent, Task, MemoryBank
+
 except ImportError:
     # Fallback for development
     aiplatform = None
@@ -35,20 +38,16 @@ class ADKOrchestrator:
     def __init__(self, project_id: str, location: str = "us-central1"):
         self.project_id = project_id
         self.location = location
-        self.memory_bank = None
+        self.data = None
         self.agents = {}
         self.is_running = False
         self.processing_queue = asyncio.Queue()
+        self.id = 0
 
     async def initialize(self):
         """Initialize the orchestrator"""
         try:
-            # Initialize memory bank
-            self.memory_bank = ADKMemoryBank(self.project_id, self.location)
-            await self.memory_bank.initialize()
-
-            # Initialize agents (here use A2A)
-
+            # Initialize
             self.is_running = True
             logger.info("ADK Orchestrator initialized successfully")
 
@@ -59,9 +58,37 @@ class ADKOrchestrator:
     async def start(self):
         """Start the orchestrator"""
         if not self.is_running:
-            await self.initialize()
+            await self.initialize()    
 
-        # Start processing loop
+        # Pull from Firestore DB packaged images (this may be already split up into just face sections)
+        TestData = {
+            "face": {
+                    "face_id": "face1",
+                    "timestamp": "2025-09-27T16:00:00Z",
+                    "bbox": [100, 50, 150, 100],
+                    "embedding": [0.12, 0.93, ...],
+                },
+            "audio_uri": "gs://bucket/vid123_audio.wav",
+        }
+        test_id = self.id
+        self.id += 1
+
+        # Call tool to split audio and images (process data function below) (TODO May not need)
+
+        # Initialize agents (here use A2A) passing images and audio out
+
+        await ctx.send_task(
+            target="video_agent", task="face_detection", payload={"video_" + str(test_id): TestData["face"]}
+        )
+
+        await ctx.send_task(
+            target="audio_agent", task="process_audio", payload={"audio_" + str(test_id): TestData["audio_uri"]},
+        )
+
+        # Call function to save location and other relevant data to output FirsestorDB that agents also send results too
+        
+
+        # Start next processing loop once above finishes (TODO)
         asyncio.create_task(self._processing_loop())
         logger.info("ADK Orchestrator started")
 
@@ -118,7 +145,7 @@ class ADKOrchestrator:
             return {}
 
     async def _processing_loop(self):
-        """Main processing loop"""
+        """Main processing loop that will call next batch of data"""
         while self.is_running:
             try:
                 # Get next item from queue
@@ -131,6 +158,15 @@ class ADKOrchestrator:
                 continue
             except Exception as e:
                 logger.error(f"Error in processing loop: {e}")
+                
+    async def store_insights(insights: Dict[str, Any]) -> bool:
+        """Store insights to Firestore DB (stub)"""
+        # This will use your GOOGLE_APPLICATION_CREDENTIALS env variable for auth
+        db = firestore.Client()
+        # Auto-generated document ID
+        doc_ref = db.collection("people_insights").document()  # random ID
+        doc_ref.set(insights)
+
 
     async def get_memories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get memories from the memory bank"""
@@ -166,6 +202,7 @@ class ADKAgent:
         self.name = name
         self.description = description
         self.is_running = False
+        self.agent = None
 
     async def initialize(self):
         """Initialize the agent"""
@@ -187,41 +224,85 @@ class ADKAgent:
 # -------------------------------
 
 
-class Video_Agent(ADKAgent):
+class VideoAgent(ADKAgent):
     """Agent for processing video data"""
 
     def __init__(self, name: str = "VideoAgent"):
         self.name = name
+        self.agent = Agent(name="video_agent")
 
     async def initialize(self):
         await super().initialize()
         # Initialize video processing model or resources
         logger.info("Video agent initialized")
 
-    async def process(self, video_frames: List[Any]) -> Dict[str, Any]:
-        # Here use external tools (tools should call AI Models)
+    def register_tasks(self):
+        # Register a task for face detection
+        @self.agent.task(name="face_detection")
+        async def face_detection(ctx: Context, video_id: str):
+            """
+            ctx is automatically provided by ADK
+            video_id is passed in the payload
+            """
+            # Pull video info from shared MemoryBank
+            video_entry = ctx.memory[video_id]
+            video_frames = video_entry.get("frames", [])
 
-        # Placeholder for video processing
+            # Call your existing processing function
+            result = await self.process(video_frames)
+
+            # Optionally store results back in MemoryBank
+            ctx.memory[video_id]["faces"] = result.get("faces", [])
+
+            # Optionally notify orchestrator / other agents
+            await ctx.send_task(
+                target="orchestrator",
+                task="video_done",
+                payload={"video_id": video_id, "result": result},
+            )
+
+            return result
+
+    async def process(self, video_frames: List[Any]) -> Dict[str, Any]:
+        # Your actual face detection / video processing logic
         return {
             "message": "Processed video frames",
             "count": len(video_frames),
+            "faces": [{"id": "face1"}, {"id": "face2"}],
             "timestamp": datetime.utcnow().isoformat(),
         }
 
 
-class Audio_Agent(ADKAgent):
-    """Agent for processing audio data"""
+class AudioAgent(ADKAgent):
+    """Audio processing agent exposed via ADK Agent tasks."""
 
-    def __init__(self, name: str = "AudioAgent"):
-        self.name = name
+    def __init__(self, memory=None):
+        self.agent = Agent(name="audio_agent", memory=memory)
+        self.register_tasks()
+        self.agent = Agent(name="audio_agent")
 
-    async def initialize(self):
-        await super().initialize()
-        # Initialize video processing model or resources
-        logger.info("Audio agent initialized")
+    def register_tasks(self):
+        @self.agent.task(name="process_audio")
+        async def process_audio(ctx: Context, video_id: str):
+            # Pull audio frames from MemoryBank
+            video_entry = ctx.memory[video_id]
+            audio_frames = video_entry.get("audio_frames", [])
 
-    # Here use external tools (tools should call AI Models)
+            # Your existing processing function
+            result = await self.process(audio_frames)
+
+            # Store results back
+            ctx.memory[video_id]["audio_result"] = result
+
+            # Notify orchestrator
+            await ctx.send_task(
+                target="orchestrator",
+                task="audio_done",
+                payload={"video_id": video_id, "result": result},
+            )
+
+            return result
 
     async def process(self, audio_frames: List[float]) -> Dict[str, Any]:
-        result = await transcribe_audio(audio_frames)
-        return {"message": "Processed audio frames", **result}
+        # Stub: replace with real transcription / audio analysis
+        return {"message": "Processed audio frames", "count": len(audio_frames)}
