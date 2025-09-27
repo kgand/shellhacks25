@@ -1,6 +1,6 @@
 # Makefile for Messenger AI Assistant
 
-.PHONY: help dev chrome-build install clean test lint format
+.PHONY: help dev chrome-build install clean test test-system start lint format
 
 # Default target
 help:
@@ -11,6 +11,8 @@ help:
 	@echo "  make install      - Install all dependencies"
 	@echo "  make clean        - Clean build artifacts"
 	@echo "  make test         - Run tests"
+	@echo "  make test-system  - Test entire system"
+	@echo "  make start        - Start system with helper script"
 	@echo "  make lint         - Run linters"
 	@echo "  make format       - Format code"
 	@echo ""
@@ -44,6 +46,16 @@ clean:
 test:
 	@echo "🧪 Running tests..."
 	cd assist/server && python -m pytest tests/ -v
+
+# Test entire system
+test-system:
+	@echo "🧪 Testing entire system..."
+	python assist/scripts/test-system.py
+
+# Start system with helper
+start:
+	@echo "🚀 Starting system..."
+	python assist/scripts/start-system.py
 
 # Run linters
 lint:
