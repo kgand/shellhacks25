@@ -1,6 +1,6 @@
 @echo off
-echo 🚀 Simple Screen Capture System
-echo ================================
+echo 🚀 Messenger AI Assistant
+echo =========================
 
 REM Check if Python is available
 python --version >nul 2>&1
@@ -19,6 +19,6 @@ if not exist "assist" (
 
 REM Start the system
 echo Starting system...
-python assist/launcher.py
+python start.py
 
 pause

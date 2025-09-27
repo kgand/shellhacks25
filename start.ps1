@@ -1,8 +1,8 @@
-# Simple Screen Capture System - PowerShell Launcher
+# Messenger AI Assistant - PowerShell Launcher
 # Run with: powershell -ExecutionPolicy Bypass -File start.ps1
 
-Write-Host "🚀 Simple Screen Capture System" -ForegroundColor Green
-Write-Host "================================" -ForegroundColor Green
+Write-Host "🚀 Messenger AI Assistant" -ForegroundColor Green
+Write-Host "=========================" -ForegroundColor Green
 
 # Check if Python is available
 try {
@@ -33,6 +33,6 @@ try {
 
 # Start the system
 Write-Host "🚀 Starting system..." -ForegroundColor Green
-python assist/launcher.py
+python start.py
 
 Read-Host "Press Enter to exit"

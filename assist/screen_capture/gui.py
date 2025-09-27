@@ -17,7 +17,7 @@ class SimpleCaptureGUI:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Simple Screen Capture - Messenger AI Assistant")
+        self.root.title("Messenger AI Assistant - Screen Capture")
         self.root.geometry("800x600")
         self.root.resizable(True, True)
         self.root.configure(bg='#f8f9fa')
@@ -105,11 +105,11 @@ class SimpleCaptureGUI:
         header_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
         
         # Title
-        title_label = ttk.Label(header_frame, text="Simple Screen Capture", style='Title.TLabel')
+        title_label = ttk.Label(header_frame, text="Messenger AI Assistant", style='Title.TLabel')
         title_label.grid(row=0, column=0, sticky=tk.W)
         
         # Subtitle
-        subtitle_label = ttk.Label(header_frame, text="Direct Audio & Video Capture - No Websockets", style='Subtitle.TLabel')
+        subtitle_label = ttk.Label(header_frame, text="Screen Capture & AI Analysis", style='Subtitle.TLabel')
         subtitle_label.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
         
         # Help button
@@ -137,31 +137,47 @@ class SimpleCaptureGUI:
     
     def _create_window_section(self, parent):
         """Create window selection section"""
-        window_frame = ttk.LabelFrame(parent, text="Select Messenger Window", padding="15")
+        window_frame = ttk.LabelFrame(parent, text="Select Messenger Window & Tab", padding="15")
         window_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
         window_frame.columnconfigure(0, weight=1)
-        window_frame.rowconfigure(1, weight=1)
+        window_frame.rowconfigure(3, weight=1)
         
         # Window list
         list_frame = ttk.Frame(window_frame)
         list_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
         list_frame.columnconfigure(0, weight=1)
         
-        self.window_listbox = tk.Listbox(list_frame, height=6, font=('Segoe UI', 9))
+        self.window_listbox = tk.Listbox(list_frame, height=4, font=('Segoe UI', 9))
         self.window_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.window_listbox.bind('<<ListboxSelect>>', self._on_window_select)
         
         # Scrollbar for listbox
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.window_listbox.yview)
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.window_listbox.configure(yscrollcommand=scrollbar.set)
         
+        # Tab selection
+        tab_frame = ttk.Frame(window_frame)
+        tab_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        tab_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(tab_frame, text="Select Tab:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
+        
+        self.tab_combobox = ttk.Combobox(tab_frame, state="readonly", width=40)
+        self.tab_combobox.grid(row=0, column=1, sticky=(tk.W, tk.E))
+        self.tab_combobox.bind('<<ComboboxSelected>>', self._on_tab_select)
+        
+        # Refresh button
+        refresh_button = ttk.Button(tab_frame, text="🔄 Refresh", command=self._refresh_windows)
+        refresh_button.grid(row=0, column=2, padx=(10, 0))
+        
         # Window info
         self.window_info = ttk.Label(window_frame, text="No window selected", style='Info.TLabel')
-        self.window_info.grid(row=1, column=0, sticky=tk.W, pady=(10, 0))
+        self.window_info.grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
         
         # Buttons
         button_frame = ttk.Frame(window_frame)
-        button_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         refresh_button = ttk.Button(button_frame, text="🔄 Refresh Windows", command=self._update_window_list, style='Refresh.TButton')
         refresh_button.grid(row=0, column=0, padx=(0, 10))
@@ -422,9 +438,9 @@ class SimpleCaptureGUI:
     def _show_help(self):
         """Show help dialog"""
         help_text = """
-Simple Screen Capture - Messenger AI Assistant
+Messenger AI Assistant - Screen Capture
 
-This application captures audio and video from Messenger Web conversations and saves them directly to files.
+This application captures audio and video from Messenger Web conversations and processes them with AI for analysis, summarization, and memory storage.
 
 How to use:
 1. Open Messenger Web in your browser
@@ -434,10 +450,11 @@ How to use:
 5. Click 'Stop Capture' when finished
 
 Features:
-• Direct file-based capture (no websockets)
+• AI-powered conversation analysis
 • Automatic Messenger window detection
 • Real-time audio/video capture
-• Simple, reliable operation
+• Memory storage and retrieval
+• Clean interface
 
 Output Files:
 • Video frames: frame_XXXXXX_timestamp.jpg

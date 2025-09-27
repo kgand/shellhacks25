@@ -91,7 +91,7 @@ class SimpleAudioCapture:
                     wf.setnchannels(self.channels)
                     wf.setsampwidth(2)  # 16-bit
                     wf.setframerate(self.sample_rate)
-                    wf.writeframes(b''.join(self.audio_data))
+                    wf.writeframes(b''.join(chunk.tobytes() for chunk in self.audio_data))
                 logger.info(f"Audio saved to: {self.output_file}")
             except Exception as e:
                 logger.error(f"Error saving audio: {e}")

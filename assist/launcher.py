@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simplified Launcher for Screen Capture System
-No websockets, direct file-based capture
+Messenger AI Assistant Launcher
+Cross-platform system startup and management
 """
 
 import subprocess
@@ -17,8 +17,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class SimpleLauncher:
-    """Simplified launcher for the screen capture system"""
+class MessengerAILauncher:
+    """Launcher for the Messenger AI Assistant system"""
     
     def __init__(self):
         self.backend_process = None
@@ -91,8 +91,8 @@ class SimpleLauncher:
     
     def run(self):
         """Run the complete system"""
-        print("🚀 Simple Screen Capture System Launcher")
-        print("=" * 50)
+        print("🚀 Messenger AI Assistant Launcher")
+        print("=" * 40)
         
         # Check if we're in the right directory
         if not Path("assist").exists():
@@ -116,14 +116,15 @@ class SimpleLauncher:
             self.cleanup()
             sys.exit(1)
         
-        print("\n✅ Simple Screen Capture System is running!")
+        print("\n✅ Messenger AI Assistant is running!")
         print("   Backend: http://127.0.0.1:8000")
         print("   Health: http://127.0.0.1:8000/health")
         print("   GUI: Screen capture window should be open")
         print("\nFeatures:")
         print("   • Direct file-based capture (no websockets)")
-        print("   • Simplified audio/video capture")
+        print("   • AI-powered conversation analysis")
         print("   • Automatic Messenger window detection")
+        print("   • Memory storage and retrieval")
         print("   • Files saved to 'capture_output' folder")
         print("\nPress Ctrl+C to stop all services")
         
@@ -159,7 +160,7 @@ class SimpleLauncher:
 
 def main():
     """Main function"""
-    launcher = SimpleLauncher()
+    launcher = MessengerAILauncher()
     launcher.run()
 
 if __name__ == "__main__":

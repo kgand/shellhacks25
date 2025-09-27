@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Setup script for Simple Screen Capture System
-Automated installation and configuration
+Setup script for Messenger AI Assistant
+Cross-platform installation and configuration
 """
 
 import subprocess
@@ -10,11 +10,18 @@ import os
 import platform
 from pathlib import Path
 
-def run_command(command, description):
+def run_command(command, description, cwd=None):
     """Run a command and handle errors"""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            command, 
+            shell=True, 
+            check=True, 
+            capture_output=True, 
+            text=True,
+            cwd=cwd
+        )
         print(f"✅ {description} completed")
         return True
     except subprocess.CalledProcessError as e:
@@ -34,16 +41,50 @@ def check_python_version():
     print(f"✅ Python {version.major}.{version.minor}.{version.micro} detected")
     return True
 
+def check_system_requirements():
+    """Check system requirements"""
+    print("\n🔍 Checking system requirements...")
+    
+    system = platform.system()
+    if system == "Windows":
+        print("✅ Windows detected")
+    elif system == "Darwin":
+        print("✅ macOS detected")
+    elif system == "Linux":
+        print("✅ Linux detected")
+    else:
+        print(f"⚠️  Unknown system: {system}")
+    
+    # Check for required tools
+    tools = ["pip", "python"]
+    for tool in tools:
+        try:
+            subprocess.run([tool, "--version"], check=True, capture_output=True)
+            print(f"✅ {tool} available")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print(f"❌ {tool} not found")
+            return False
+    
+    return True
+
 def install_dependencies():
     """Install all required dependencies"""
     print("\n📦 Installing dependencies...")
     
     # Install server dependencies
-    if not run_command("cd assist/server && pip install -r requirements.txt", "Installing server dependencies"):
+    if not run_command(
+        "pip install -r requirements.txt", 
+        "Installing server dependencies",
+        cwd="assist/server"
+    ):
         return False
     
     # Install screen capture dependencies
-    if not run_command("cd assist/screen_capture && pip install -r requirements.txt", "Installing screen capture dependencies"):
+    if not run_command(
+        "pip install -r requirements.txt", 
+        "Installing screen capture dependencies",
+        cwd="assist/screen_capture"
+    ):
         return False
     
     return True
@@ -73,10 +114,10 @@ def create_directories():
     print("\n📁 Creating directories...")
     
     directories = [
-        "assist/capture_output",
-        "assist/uploads", 
-        "assist/processed",
-        "assist/logs"
+        "assist/screen_capture/capture_output",
+        "assist/server/uploads", 
+        "assist/server/processed",
+        "assist/server/logs"
     ]
     
     for directory in directories:
@@ -85,36 +126,9 @@ def create_directories():
     
     return True
 
-def check_system_requirements():
-    """Check system requirements"""
-    print("\n🔍 Checking system requirements...")
-    
-    # Check OS
-    system = platform.system()
-    if system == "Windows":
-        print("✅ Windows detected")
-    elif system == "Darwin":
-        print("✅ macOS detected")
-    elif system == "Linux":
-        print("✅ Linux detected")
-    else:
-        print(f"⚠️  Unknown system: {system}")
-    
-    # Check for required tools
-    tools = ["pip", "python"]
-    for tool in tools:
-        try:
-            subprocess.run([tool, "--version"], check=True, capture_output=True)
-            print(f"✅ {tool} available")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print(f"❌ {tool} not found")
-            return False
-    
-    return True
-
 def main():
     """Main setup function"""
-    print("🚀 Simple Screen Capture System Setup")
+    print("🚀 Messenger AI Assistant Setup")
     print("=" * 50)
     
     # Check Python version
@@ -143,11 +157,10 @@ def main():
     
     print("\n🎉 Setup completed successfully!")
     print("\nNext steps:")
-    print("  make start    - Start the complete system")
-    print("  make dev      - Start backend only")
-    print("  make gui      - Start GUI only")
-    print("  make test     - Test system components")
-    print("\nFor help: make help")
+    print("  python assist/launcher.py    - Start the complete system")
+    print("  python assist/server/app.py - Start backend only")
+    print("  python assist/screen_capture/gui.py - Start GUI only")
+    print("\nFor help: python assist/launcher.py --help")
 
 if __name__ == "__main__":
     main()

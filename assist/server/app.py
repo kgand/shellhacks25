@@ -1,6 +1,6 @@
 """
-Simplified FastAPI backend for file-based screen capture
-No websockets, direct file handling
+FastAPI backend for Messenger AI Assistant
+File-based screen capture with AI processing pipeline
 """
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # FastAPI app will be initialized with lifespan below
 
 # Global state
-class SimpleServiceState:
+class MessengerAIServiceState:
     def __init__(self):
         self.capture_sessions = {}
         self.uploaded_files = []
@@ -34,7 +34,7 @@ class SimpleServiceState:
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.output_dir, exist_ok=True)
 
-state = SimpleServiceState()
+state = MessengerAIServiceState()
 
 from contextlib import asynccontextmanager
 
@@ -42,7 +42,7 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
     # Startup
-    logger.info("🚀 Starting Simple Screen Capture Backend...")
+    logger.info("🚀 Starting Messenger AI Assistant Backend...")
     state.is_initialized = True
     logger.info("✅ Backend initialized successfully")
     
@@ -53,8 +53,8 @@ async def lifespan(app: FastAPI):
 
 # Add lifespan to app
 app = FastAPI(
-    title="Simple Screen Capture API",
-    description="Backend for file-based screen capture system",
+    title="Messenger AI Assistant API",
+    description="Backend for AI-powered screen capture and analysis",
     version="2.0.0",
     lifespan=lifespan
 )
@@ -73,7 +73,7 @@ app.add_middleware(
 async def root():
     """Root endpoint with system information"""
     return {
-        "message": "Simple Screen Capture API",
+        "message": "Messenger AI Assistant API",
         "version": "2.0.0",
         "status": "running",
         "endpoints": {

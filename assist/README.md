@@ -1,60 +1,66 @@
-# Simple Screen Capture System
+# Messenger AI Assistant
 
-A simplified, reliable screen capture system for Messenger Web conversations. This system replaces the complex websocket-based architecture with a direct file-based approach.
+A professional screen capture and AI processing system for Messenger Web conversations. This system captures audio and video from Messenger Web using Python screen detection, processes it through a FastAPI backend, and uses AI agents for conversation analysis, summarization, and memory storage.
 
 ## Features
 
 - **Direct File-Based Capture**: No websockets, saves directly to files
-- **Simplified Audio Capture**: Uses system audio with sounddevice
-- **MSS Screen Capture**: Reliable screen capture using MSS library
-- **Automatic Window Detection**: Finds Messenger windows automatically
-- **Professional GUI**: Clean, modern interface
-- **File Management**: Organized output with timestamps
-- **No Async Complexity**: Synchronous operations for reliability
-- **Auto-Processing**: Automatically processes captured files with server
+- **AI-Powered Processing**: Conversation summarization and analysis
+- **Memory Storage**: Persistent memory with Firestore integration
+- **Professional GUI**: Clean, modern interface with real-time status
+- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Smart Capture**: Automatic window detection and smart cropping
+- **Audio/Video Sync**: Simultaneous recording with optimization
+- **Auto-Processing**: Automatic file processing pipeline
 - **Color Correction**: Fixes blue tint issues in captured frames
-- **Smart Cropping**: Focuses on video content, removes browser UI and taskbar
+- **Relationship Mining**: Discovers relationships between people
 
 ## Architecture
 
+```
+Python Screen Capture → FastAPI Backend → AI Processing → Memory Storage
+```
+
 ### Components
 
-1. **SimpleCaptureSystem** (`simple_capture.py`)
-   - Coordinates audio and video capture
-   - Direct file-based output
-   - No websockets or async operations
+1. **Screen Capture System** (`assist/screen_capture/`)
+   - Direct file-based audio/video capture
+   - Automatic Messenger window detection
+   - Professional GUI interface
+   - Smart cropping and color correction
 
-2. **SimpleCaptureGUI** (`simple_gui.py`)
-   - Modern Tkinter interface
-   - Real-time status updates
-   - Easy window selection
+2. **Backend API Server** (`assist/server/`)
+   - FastAPI REST API
+   - File upload and processing
+   - Session management
+   - Auto-processing pipeline
 
-3. **SimpleBackend** (`simple_app.py`)
-   - FastAPI backend for file management
-   - Session-based organization
-   - RESTful API endpoints
-
-4. **SimpleLauncher** (`simple_launcher.py`)
-   - One-click system startup
-   - Dependency checking
-   - Process management
+3. **AI Processing** (`assist/server/`)
+   - Gemini Live API integration
+   - ADK Agent Development Kit
+   - Memory storage with Firestore
+   - Conversation analysis and summarization
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.8+
-- Windows 10/11 (for win32gui support)
+- Windows 10/11, macOS 10.15+, or Linux
 - Audio drivers (for audio capture)
 
-### Dependencies
+### Quick Setup
 
 ```bash
-# Screen capture dependencies
-pip install -r screen_capture/requirements.txt
+# Cross-platform setup
+python setup.py
 
-# Backend dependencies  
-pip install -r server/requirements.txt
+# Or use platform-specific scripts
+# Windows
+start.bat
+
+# PowerShell
+powershell -ExecutionPolicy Bypass -File start.ps1
 ```
 
 ### Key Dependencies
@@ -64,7 +70,7 @@ pip install -r server/requirements.txt
 - `sounddevice`: Audio capture
 - `fastapi`: Backend API
 - `uvicorn`: ASGI server
-- `pywin32`: Windows integration
+- `pywin32`: Windows integration (Windows only)
 
 ## Usage
 
@@ -72,7 +78,7 @@ pip install -r server/requirements.txt
 
 1. **Launch the system**:
    ```bash
-   python simple_launcher.py
+   python start.py
    ```
 
 2. **Open Messenger Web** in your browser
@@ -81,32 +87,30 @@ pip install -r server/requirements.txt
 
 4. **Click "Start Capture"** to begin recording
 
-5. **Files are saved** to `capture_output/` folder
+5. **Files are saved** to `assist/screen_capture/capture_output/` folder
 
 ### Manual Start
 
 1. **Start backend**:
    ```bash
-   cd server
-   python simple_app.py
+   python assist/server/app.py
    ```
 
 2. **Start GUI**:
    ```bash
-   cd screen_capture
-   python simple_gui.py
+   python assist/screen_capture/gui.py
    ```
 
 ## Output Files
 
 ### Video Frames
 - Format: `frame_XXXXXX_YYYYMMDD_HHMMSS_mmm.jpg`
-- Location: `capture_output/`
-- Quality: 85% JPEG compression
+- Location: `assist/screen_capture/capture_output/`
+- Quality: 85% JPEG compression with optimization
 
 ### Audio
 - Format: `audio_timestamp.wav`
-- Location: `capture_output/`
+- Location: `assist/screen_capture/capture_output/`
 - Sample Rate: 44.1kHz, 16-bit, Stereo
 
 ## API Endpoints

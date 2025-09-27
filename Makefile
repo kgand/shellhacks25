@@ -1,10 +1,10 @@
-# Makefile for Simple Screen Capture System
+# Makefile for Messenger AI Assistant
 
 .PHONY: help start dev gui install clean test setup
 
 # Default target
 help:
-	@echo "Simple Screen Capture System - Available Commands:"
+	@echo "Messenger AI Assistant - Available Commands:"
 	@echo ""
 	@echo "  make start    - Start the complete system (backend + GUI)"
 	@echo "  make dev      - Start backend server only"
@@ -17,18 +17,18 @@ help:
 
 # Start complete system
 start:
-	@echo "🚀 Starting Simple Screen Capture System..."
-	python assist/launcher.py
+	@echo "🚀 Starting Messenger AI Assistant..."
+	python start.py
 
 # Development server only
 dev:
 	@echo "🚀 Starting backend server..."
-	cd assist/server && python app.py
+	python assist/server/app.py
 
 # Screen capture GUI only
 gui:
 	@echo "🖥️ Starting screen capture GUI..."
-	cd assist/screen_capture && python gui.py
+	python assist/screen_capture/gui.py
 
 # Install dependencies
 install:
@@ -52,11 +52,6 @@ test:
 	@cd assist/screen_capture && python -c "import gui; print('✅ GUI imports successful')"
 	@echo "✅ All tests passed"
 
-# Test AI integration
-test-ai:
-	@echo "🤖 Testing AI integration..."
-	python test_ai_integration.py
-
 # Monitor system in real-time
 monitor:
 	@echo "📊 Starting system monitor..."
@@ -70,7 +65,7 @@ clean:
 	rm -rf assist/__pycache__
 	rm -rf assist/server/__pycache__
 	rm -rf assist/screen_capture/__pycache__
-	rm -rf assist/capture_output
-	rm -rf assist/uploads
-	rm -rf assist/processed
+	rm -rf assist/screen_capture/capture_output
+	rm -rf assist/server/uploads
+	rm -rf assist/server/processed
 	@echo "✅ Cleanup complete"

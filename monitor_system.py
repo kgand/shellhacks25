@@ -55,7 +55,7 @@ def get_recent_files():
 
 def monitor_loop():
     """Main monitoring loop"""
-    print("🔍 Real-time System Monitor")
+    print("🔍 Messenger AI Assistant Monitor")
     print("=" * 40)
     print("Press Ctrl+C to stop monitoring")
     print()
@@ -65,7 +65,7 @@ def monitor_loop():
             # Clear screen (works on most terminals)
             os.system('cls' if os.name == 'nt' else 'clear')
             
-            print("🔍 Real-time System Monitor")
+            print("🔍 Messenger AI Assistant Monitor")
             print("=" * 40)
             print(f"Time: {datetime.now().strftime('%H:%M:%S')}")
             print()
