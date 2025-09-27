@@ -25,7 +25,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
 from platform_utils import platform_detector
 from window_detector import CrossPlatformWindowDetector, WindowInfo
 from audio_capture import CrossPlatformAudioCapture
-from screen_capture import CrossPlatformScreenCapture, CaptureRegion
+from cross_platform_screen_capture import CrossPlatformScreenCapture, CaptureRegion
 
 # Audio capture imports
 try:
