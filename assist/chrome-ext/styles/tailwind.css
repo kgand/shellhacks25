@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the extension */
+.extension-container {
+  @apply min-h-screen bg-base-100;
+}
+
+.status-indicator {
+  @apply inline-block w-2 h-2 rounded-full;
+}
+
+.status-indicator.connected {
+  @apply bg-success;
+}
+
+.status-indicator.disconnected {
+  @apply bg-error;
+}
+
+.status-indicator.recording {
+  @apply bg-warning animate-pulse;
+}
+
+/* Custom animations */
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.recording-pulse {
+  animation: pulse-recording 1s ease-in-out infinite;
+}
