@@ -19,21 +19,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Simple Screen Capture API",
-    description="Backend for file-based screen capture system",
-    version="2.0.0"
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# FastAPI app will be initialized with lifespan below
 
 # Global state
 class SimpleServiceState:
@@ -50,17 +36,37 @@ class SimpleServiceState:
 
 state = SimpleServiceState()
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services"""
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
     logger.info("🚀 Starting Simple Screen Capture Backend...")
     state.is_initialized = True
     logger.info("✅ Backend initialized successfully")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
+    
+    yield
+    
+    # Shutdown
     logger.info("🛑 Shutting down backend...")
+
+# Add lifespan to app
+app = FastAPI(
+    title="Simple Screen Capture API",
+    description="Backend for file-based screen capture system",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Health check endpoint
 @app.get("/health")

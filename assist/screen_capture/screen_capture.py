@@ -105,7 +105,7 @@ class SimpleAudioCapture:
                 'last_log_time': time.time()
             }
             
-            def audio_callback(indata, frames, time, status):
+            def audio_callback(indata, frames, callback_time, status):
                 if status:
                     logger.warning(f"Audio callback status: {status}")
                 
@@ -119,11 +119,14 @@ class SimpleAudioCapture:
                     audio_stats['total_bytes'] += len(audio_chunk.tobytes())
                     
                     # Log performance every 10 seconds
-                    current_time = time.time()
+                    import time as time_module
+                    current_time = time_module.time()
                     if current_time - audio_stats['last_log_time'] > 10:
-                        chunks_per_sec = audio_stats['chunks_recorded'] / (current_time - audio_stats['last_log_time'])
-                        bytes_per_sec = audio_stats['total_bytes'] / (current_time - audio_stats['last_log_time'])
-                        logger.info(f"Audio: {chunks_per_sec:.1f} chunks/sec, {bytes_per_sec/1024:.1f} KB/sec")
+                        time_diff = current_time - audio_stats['last_log_time']
+                        if time_diff > 0:  # Prevent division by zero
+                            chunks_per_sec = audio_stats['chunks_recorded'] / time_diff
+                            bytes_per_sec = audio_stats['total_bytes'] / time_diff
+                            logger.info(f"Audio: {chunks_per_sec:.1f} chunks/sec, {bytes_per_sec/1024:.1f} KB/sec")
                         
                         # Reset stats
                         audio_stats['chunks_recorded'] = 0
@@ -147,7 +150,6 @@ class SimpleScreenCapture:
     """Simplified screen capture using MSS only"""
     
     def __init__(self):
-        self.mss_instance = None
         self.is_capturing = False
         self.capture_thread = None
         self.frame_count = 0
@@ -163,7 +165,6 @@ class SimpleScreenCapture:
             return False
             
         try:
-            self.mss_instance = mss.mss()
             self.is_capturing = True
             self.frame_count = 0
             self.fps = fps
@@ -189,9 +190,6 @@ class SimpleScreenCapture:
         
         if self.capture_thread:
             self.capture_thread.join()
-            
-        if self.mss_instance:
-            self.mss_instance.close()
             
         logger.info(f"Screen capture stopped. Captured {self.frame_count} frames")
     
@@ -247,18 +245,25 @@ class SimpleScreenCapture:
                 
                 # Log performance every 100 frames
                 if self.frame_count % 100 == 0:
-                    avg_capture = sum(performance_stats['frame_times'][-10:]) / min(10, len(performance_stats['frame_times']))
-                    avg_save = sum(performance_stats['save_times'][-10:]) / min(10, len(performance_stats['save_times']))
-                    logger.info(f"Performance: {self.frame_count} frames, "
-                              f"avg capture: {avg_capture:.3f}s, "
-                              f"avg save: {avg_save:.3f}s, "
-                              f"dropped: {performance_stats['dropped_frames']}")
+                    frame_times = performance_stats['frame_times'][-10:]
+                    save_times = performance_stats['save_times'][-10:]
+                    
+                    if frame_times and save_times:
+                        avg_capture = sum(frame_times) / len(frame_times)
+                        avg_save = sum(save_times) / len(save_times)
+                        logger.info(f"Performance: {self.frame_count} frames, "
+                                  f"avg capture: {avg_capture:.3f}s, "
+                                  f"avg save: {avg_save:.3f}s, "
+                                  f"dropped: {performance_stats['dropped_frames']}")
+                    else:
+                        logger.info(f"Performance: {self.frame_count} frames, "
+                                  f"dropped: {performance_stats['dropped_frames']}")
                 
         except Exception as e:
             logger.error(f"Error in capture loop: {e}")
     
     def _capture_frame(self) -> Optional[np.ndarray]:
-        """Capture a single frame"""
+        """Capture a single frame with proper error handling"""
         try:
             # Define capture region
             monitor = {
@@ -268,9 +273,10 @@ class SimpleScreenCapture:
                 "height": self.window.height
             }
             
-            # Capture screenshot
-            screenshot = self.mss_instance.grab(monitor)
-            frame = np.array(screenshot)
+            # Create a new MSS instance for each capture to avoid threading issues
+            with mss.mss() as mss_instance:
+                screenshot = mss_instance.grab(monitor)
+                frame = np.array(screenshot)
             
             # Convert BGRA to BGR if needed
             if len(frame.shape) == 3 and frame.shape[2] == 4:
