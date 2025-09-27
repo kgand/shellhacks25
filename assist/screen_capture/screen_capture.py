@@ -158,7 +158,7 @@ class SimpleScreenCapture:
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
-    def start_capture(self, window: WindowInfo, fps: int = 15):
+    def start_capture(self, window: WindowInfo, fps: int = 15, crop_region=None):
         """Start screen capture for a specific window"""
         if self.is_capturing:
             logger.warning("Capture already in progress")
@@ -169,6 +169,7 @@ class SimpleScreenCapture:
             self.frame_count = 0
             self.fps = fps
             self.window = window
+            self.crop_region = crop_region
             
             # Start capture thread
             self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
@@ -283,8 +284,21 @@ class SimpleScreenCapture:
             if len(frame.shape) == 3 and frame.shape[2] == 4:
                 frame = frame[:, :, :3]
             
-            # Try to detect and crop to video content area
-            frame = self._crop_to_video_content(frame)
+            # Apply user-defined crop region if available
+            if self.crop_region:
+                x, y, width, height = self.crop_region
+                # Ensure crop region is within frame bounds
+                frame_height, frame_width = frame.shape[:2]
+                x = max(0, min(x, frame_width - 1))
+                y = max(0, min(y, frame_height - 1))
+                width = min(width, frame_width - x)
+                height = min(height, frame_height - y)
+                
+                if width > 0 and height > 0:
+                    frame = frame[y:y+height, x:x+width]
+            else:
+                # Try to detect and crop to video content area
+                frame = self._crop_to_video_content(frame)
             
             return frame
             
@@ -394,13 +408,9 @@ class SimpleScreenCapture:
                 new_height = int(height * scale)
                 frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
             
-            # Fix color space conversion - ensure proper BGR to RGB conversion
-            if len(frame.shape) == 3 and frame.shape[2] == 3:
-                # Convert BGR to RGB for proper color display
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Apply color correction to fix blue tint
-            frame = self._fix_color_tint(frame)
+            # Keep original color space - don't convert BGR to RGB
+            # The frame is already in the correct BGR format for OpenCV
+            # Converting to RGB would cause color channel swapping issues
             
             return frame
             
@@ -409,28 +419,10 @@ class SimpleScreenCapture:
             return frame
     
     def _fix_color_tint(self, frame: np.ndarray) -> np.ndarray:
-        """Fix color tint issues in captured frames"""
-        try:
-            # Convert to float for processing
-            frame_float = frame.astype(np.float32) / 255.0
-            
-            # Apply color balance correction
-            # Reduce blue channel dominance
-            frame_float[:, :, 2] = frame_float[:, :, 2] * 0.9  # Reduce blue
-            frame_float[:, :, 0] = frame_float[:, :, 0] * 1.1  # Enhance red
-            frame_float[:, :, 1] = frame_float[:, :, 1] * 1.05  # Slightly enhance green
-            
-            # Clamp values to valid range
-            frame_float = np.clip(frame_float, 0, 1)
-            
-            # Convert back to uint8
-            frame_corrected = (frame_float * 255).astype(np.uint8)
-            
-            return frame_corrected
-            
-        except Exception as e:
-            logger.warning(f"Error fixing color tint: {e}")
-            return frame
+        """Fix color tint issues in captured frames - DISABLED to preserve original colors"""
+        # Return frame unchanged to preserve original colors
+        # Color correction was causing blue/orange shifting issues
+        return frame
 
 class SimpleWindowDetector:
     """Simplified window detection"""
@@ -531,6 +523,7 @@ class SimpleCaptureSystem:
         self.is_capturing = False
         self.selected_window = None
         self.server_url = "http://127.0.0.1:8000"
+        self.crop_region = None  # Store crop region (x, y, width, height)
         
     def find_windows(self) -> List[WindowInfo]:
         """Find available Messenger windows"""
@@ -540,6 +533,15 @@ class SimpleCaptureSystem:
         """Select a window for capture"""
         self.selected_window = window
         logger.info(f"Selected window: {window.title}")
+    
+    def set_crop_region(self, x: int, y: int, width: int, height: int):
+        """Set the crop region for frame capture"""
+        self.crop_region = (x, y, width, height)
+        logger.info(f"Crop region set: x={x}, y={y}, width={width}, height={height}")
+    
+    def get_crop_region(self):
+        """Get the current crop region"""
+        return self.crop_region
     
     def start_capture(self, fps: int = 15) -> bool:
         """Start capturing audio and video"""
@@ -553,7 +555,7 @@ class SimpleCaptureSystem:
         
         try:
             # Start screen capture
-            if not self.screen_capture.start_capture(self.selected_window, fps):
+            if not self.screen_capture.start_capture(self.selected_window, fps, self.crop_region):
                 return False
             
             # Start audio capture

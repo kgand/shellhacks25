@@ -10,7 +10,238 @@ import logging
 from datetime import datetime
 import webbrowser
 import os
+import cv2
+import numpy as np
+from PIL import Image, ImageTk
 from screen_capture import SimpleCaptureSystem, WindowInfo
+
+class CropDialog:
+    """Interactive cropping dialog for selecting crop region"""
+    
+    def __init__(self, parent, frame_image, window_title="Select Crop Region"):
+        self.parent = parent
+        self.frame_image = frame_image
+        self.result = None
+        
+        # Create dialog window
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title(window_title)
+        self.dialog.geometry("900x700")
+        self.dialog.resizable(True, True)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Center the dialog
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (900 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (700 // 2)
+        self.dialog.geometry(f"900x700+{x}+{y}")
+        
+        # Ensure dialog stays on top
+        self.dialog.lift()
+        self.dialog.focus_force()
+        
+        # Crop region variables
+        self.start_x = 0
+        self.start_y = 0
+        self.end_x = 0
+        self.end_y = 0
+        self.drawing = False
+        self.rect_id = None
+        
+        # Convert frame to display format
+        self._prepare_display_image()
+        
+        # Create UI
+        self._create_widgets()
+        
+        # Bind mouse events
+        self.canvas.bind("<Button-1>", self._on_mouse_press)
+        self.canvas.bind("<B1-Motion>", self._on_mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_mouse_release)
+    
+    def _prepare_display_image(self):
+        """Prepare the frame image for display"""
+        try:
+            # Convert BGR to RGB if needed
+            if len(self.frame_image.shape) == 3 and self.frame_image.shape[2] == 3:
+                display_image = cv2.cvtColor(self.frame_image, cv2.COLOR_BGR2RGB)
+            else:
+                display_image = self.frame_image.copy()
+            
+            # Resize image to fit dialog if too large
+            height, width = display_image.shape[:2]
+            max_width, max_height = 700, 500
+            
+            if width > max_width or height > max_height:
+                scale = min(max_width / width, max_height / height)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                display_image = cv2.resize(display_image, (new_width, new_height))
+                self.scale_factor = scale
+            else:
+                self.scale_factor = 1.0
+            
+            # Convert to PIL Image for tkinter
+            self.pil_image = Image.fromarray(display_image)
+            self.tk_image = ImageTk.PhotoImage(self.pil_image)
+            
+        except Exception as e:
+            print(f"Error preparing display image: {e}")
+            # Create a placeholder image
+            self.pil_image = Image.new('RGB', (400, 300), color='gray')
+            self.tk_image = ImageTk.PhotoImage(self.pil_image)
+            self.scale_factor = 1.0
+    
+    def _create_widgets(self):
+        """Create the dialog widgets"""
+        # Main frame
+        main_frame = ttk.Frame(self.dialog, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.rowconfigure(1, weight=1)  # Make canvas expandable
+        main_frame.columnconfigure(0, weight=1)
+        
+        # Instructions
+        instructions = ttk.Label(main_frame, text="Click and drag to select the area you want to capture:", 
+                                font=('Segoe UI', 11, 'bold'))
+        instructions.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        
+        # Canvas for image display with scrollbars
+        canvas_container = ttk.Frame(main_frame)
+        canvas_container.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
+        canvas_container.rowconfigure(0, weight=1)
+        canvas_container.columnconfigure(0, weight=1)
+        
+        # Add scrollbars
+        v_scrollbar = ttk.Scrollbar(canvas_container, orient=tk.VERTICAL)
+        h_scrollbar = ttk.Scrollbar(canvas_container, orient=tk.HORIZONTAL)
+        
+        self.canvas = tk.Canvas(canvas_container, bg='white', 
+                              yscrollcommand=v_scrollbar.set, 
+                              xscrollcommand=h_scrollbar.set)
+        
+        self.canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        
+        v_scrollbar.config(command=self.canvas.yview)
+        h_scrollbar.config(command=self.canvas.xview)
+        
+        # Display the image
+        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_image)
+        
+        # Buttons frame - fixed at bottom with better layout
+        button_frame = ttk.LabelFrame(main_frame, text="Actions", padding="10")
+        button_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        button_frame.columnconfigure(0, weight=1)
+        
+        # Top row with crop info
+        info_frame = ttk.Frame(button_frame)
+        info_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        info_frame.columnconfigure(0, weight=1)
+        
+        self.crop_info = ttk.Label(info_frame, text="No selection made - click and drag to select area", 
+                                  font=('Segoe UI', 10))
+        self.crop_info.grid(row=0, column=0, sticky=tk.W)
+        
+        # Bottom row with buttons
+        button_row = ttk.Frame(button_frame)
+        button_row.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        button_row.columnconfigure(0, weight=1)
+        
+        # Buttons on the right
+        button_container = ttk.Frame(button_row)
+        button_container.grid(row=0, column=1, sticky=tk.E)
+        
+        apply_btn = ttk.Button(button_container, text="✓ Apply Crop", command=self._apply_crop, 
+                              style='Start.TButton')
+        apply_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        
+        cancel_btn = ttk.Button(button_container, text="✗ Cancel", command=self._cancel)
+        cancel_btn.pack(side=tk.RIGHT)
+    
+    def _on_mouse_press(self, event):
+        """Handle mouse press"""
+        self.start_x = self.canvas.canvasx(event.x)
+        self.start_y = self.canvas.canvasy(event.y)
+        self.drawing = True
+        
+        # Remove previous rectangle
+        if self.rect_id:
+            self.canvas.delete(self.rect_id)
+    
+    def _on_mouse_drag(self, event):
+        """Handle mouse drag"""
+        if not self.drawing:
+            return
+        
+        self.end_x = self.canvas.canvasx(event.x)
+        self.end_y = self.canvas.canvasy(event.y)
+        
+        # Remove previous rectangle
+        if self.rect_id:
+            self.canvas.delete(self.rect_id)
+        
+        # Draw new rectangle
+        self.rect_id = self.canvas.create_rectangle(
+            self.start_x, self.start_y, self.end_x, self.end_y,
+            outline='red', width=2
+        )
+        
+        # Update crop info
+        width = abs(self.end_x - self.start_x)
+        height = abs(self.end_y - self.start_y)
+        self.crop_info.config(text=f"Selection: {int(width)}x{int(height)} pixels - Release to confirm")
+    
+    def _on_mouse_release(self, event):
+        """Handle mouse release"""
+        if not self.drawing:
+            return
+        
+        self.drawing = False
+        self.end_x = self.canvas.canvasx(event.x)
+        self.end_y = self.canvas.canvasy(event.y)
+        
+        # Update crop info to show final selection
+        width = abs(self.end_x - self.start_x)
+        height = abs(self.end_y - self.start_y)
+        if width > 0 and height > 0:
+            self.crop_info.config(text=f"Selected: {int(width)}x{int(height)} pixels - Click 'Apply Crop' to confirm")
+        else:
+            self.crop_info.config(text="No selection made - click and drag to select area")
+    
+    def _apply_crop(self):
+        """Apply the crop selection"""
+        if not self.rect_id:
+            messagebox.showwarning("No Selection", "Please select an area to crop.")
+            return
+        
+        # Calculate crop region in original image coordinates
+        x1 = min(self.start_x, self.end_x)
+        y1 = min(self.start_y, self.end_y)
+        x2 = max(self.start_x, self.end_x)
+        y2 = max(self.start_y, self.end_y)
+        
+        # Convert to original image coordinates
+        x1 = int(x1 / self.scale_factor)
+        y1 = int(y1 / self.scale_factor)
+        x2 = int(x2 / self.scale_factor)
+        y2 = int(y2 / self.scale_factor)
+        
+        width = x2 - x1
+        height = y2 - y1
+        
+        if width <= 0 or height <= 0:
+            messagebox.showwarning("Invalid Selection", "Please select a valid area.")
+            return
+        
+        self.result = (x1, y1, width, height)
+        self.dialog.destroy()
+    
+    def _cancel(self):
+        """Cancel cropping"""
+        self.result = None
+        self.dialog.destroy()
 
 class SimpleCaptureGUI:
     """Simplified GUI for the screen capture system"""
@@ -167,6 +398,10 @@ class SimpleCaptureGUI:
         self.tab_combobox.grid(row=0, column=1, sticky=(tk.W, tk.E))
         self.tab_combobox.bind('<<ComboboxSelected>>', self._on_tab_select)
         
+        # Add default tab options
+        self.tab_combobox['values'] = ('Select a tab...', 'Video Call', 'Chat', 'Group Chat', 'Other')
+        self.tab_combobox.set('Select a tab...')
+        
         # Refresh button
         refresh_button = ttk.Button(tab_frame, text="🔄 Refresh", command=self._refresh_windows)
         refresh_button.grid(row=0, column=2, padx=(10, 0))
@@ -175,9 +410,13 @@ class SimpleCaptureGUI:
         self.window_info = ttk.Label(window_frame, text="No window selected", style='Info.TLabel')
         self.window_info.grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
         
+        # Crop status
+        self.crop_status = ttk.Label(window_frame, text="No crop region set", style='Info.TLabel')
+        self.crop_status.grid(row=3, column=0, sticky=tk.W, pady=(5, 0))
+        
         # Buttons
         button_frame = ttk.Frame(window_frame)
-        button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        button_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
         
         refresh_button = ttk.Button(button_frame, text="🔄 Refresh Windows", command=self._update_window_list, style='Refresh.TButton')
         refresh_button.grid(row=0, column=0, padx=(0, 10))
@@ -326,10 +565,93 @@ class SimpleCaptureGUI:
                 self.window_info.config(text=f"Selected: {selected_window.title}")
                 self._log_message(f"Selected window: {selected_window.title}")
     
+    def _on_tab_select(self, event):
+        """Handle tab selection"""
+        selected_tab = self.tab_combobox.get()
+        if selected_tab and selected_tab != 'Select a tab...':
+            self._log_message(f"Selected tab: {selected_tab}")
+            # Update window info to show selected tab
+            if self.capture_system.selected_window:
+                self.window_info.config(text=f"Selected: {self.capture_system.selected_window.title} - {selected_tab}")
+                # Trigger cropping dialog after tab selection
+                self._show_crop_dialog()
+    
+    def _refresh_windows(self):
+        """Refresh the window list"""
+        self._log_message("Refreshing window list...")
+        self._update_window_list()
+    
+    def _capture_preview_frame(self):
+        """Capture a preview frame for cropping"""
+        try:
+            if not self.capture_system.selected_window:
+                return None
+            
+            import mss
+            import numpy as np
+            
+            # Define capture region - same as in screen capture
+            monitor = {
+                "top": self.capture_system.selected_window.y + 80,
+                "left": self.capture_system.selected_window.x + 30,
+                "width": self.capture_system.selected_window.width - 60,
+                "height": self.capture_system.selected_window.height - 150
+            }
+            
+            # Capture frame
+            with mss.mss() as mss_instance:
+                screenshot = mss_instance.grab(monitor)
+                frame = np.array(screenshot)
+            
+            # Convert BGRA to BGR if needed
+            if len(frame.shape) == 3 and frame.shape[2] == 4:
+                frame = frame[:, :, :3]
+            
+            return frame
+            
+        except Exception as e:
+            self._log_message(f"Error capturing preview frame: {e}", "ERROR")
+            return None
+    
+    def _show_crop_dialog(self):
+        """Show the cropping dialog"""
+        try:
+            # Capture a preview frame
+            preview_frame = self._capture_preview_frame()
+            if preview_frame is None:
+                messagebox.showerror("Error", "Could not capture preview frame. Please try again.")
+                return
+            
+            # Show cropping dialog
+            crop_dialog = CropDialog(self.root, preview_frame, "Select Crop Region for Messenger Tab")
+            
+            # Wait for dialog to close
+            self.root.wait_window(crop_dialog.dialog)
+            
+            # Get crop result
+            if crop_dialog.result:
+                x, y, width, height = crop_dialog.result
+                self.capture_system.set_crop_region(x, y, width, height)
+                self._log_message(f"Crop region set: {width}x{height} at ({x}, {y})")
+                self.crop_status.config(text=f"Crop region set: {width}x{height} pixels", style='Status.TLabel')
+                messagebox.showinfo("Crop Set", f"Crop region set to {width}x{height} pixels.\nYou can now start capture.")
+            else:
+                self._log_message("Crop selection cancelled")
+                self.crop_status.config(text="No crop region set", style='Info.TLabel')
+                
+        except Exception as e:
+            self._log_message(f"Error showing crop dialog: {e}", "ERROR")
+            messagebox.showerror("Error", f"Error showing crop dialog: {e}")
+    
     def _start_capture(self):
         """Start screen capture"""
         if not self.capture_system.selected_window:
             messagebox.showwarning("No Window Selected", "Please select a Messenger window first.")
+            return
+        
+        # Check if crop region is set
+        if not self.capture_system.get_crop_region():
+            messagebox.showwarning("No Crop Region Set", "Please select a tab and set up the crop region first.")
             return
         
         try:
