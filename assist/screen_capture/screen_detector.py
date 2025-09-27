@@ -57,6 +57,7 @@ class ScreenDetector:
         self.capture_region = None
         self.is_capturing = False
         self.screen_capture = None
+        self.selected_window = None  # Add missing selected_window attribute
         self._init_screen_capture()
     
     def _init_screen_capture(self):
@@ -66,6 +67,11 @@ class ScreenDetector:
         except Exception as e:
             logger.error(f"Failed to initialize screen capture: {e}")
             self.screen_capture = None
+    
+    def set_selected_window(self, window: WindowInfo):
+        """Set the selected window for capture"""
+        self.selected_window = window
+        logger.info(f"Selected window: {window.title}")
         
     def find_messenger_windows(self) -> List[WindowInfo]:
         """Find all Messenger-related windows"""

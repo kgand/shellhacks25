@@ -289,7 +289,7 @@ class ScreenCaptureGUI:
             windows = self.detector.find_messenger_windows()
             if index < len(windows):
                 selected_window = windows[index]
-                self.detector.selected_window = selected_window
+                self.detector.set_selected_window(selected_window)
                 self.window_info.config(text=f"Selected: {selected_window.title}")
                 self._log_message(f"Selected window: {selected_window.title}")
     
