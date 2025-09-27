@@ -37,8 +37,9 @@ class MessengerAIAssistant {
 
     private setupEventListeners() {
         // Consent toggle
-        this.elements.consentToggle?.addEventListener('change', (e: Event) => {
-            this.consentGiven = (e.target as HTMLInputElement).checked;
+        this.elements.consentToggle?.addEventListener('click', () => {
+            this.consentGiven = !this.consentGiven;
+            this.elements.consentToggle.classList.toggle('active', this.consentGiven);
             this.updateCaptureButton();
         });
 
@@ -52,8 +53,9 @@ class MessengerAIAssistant {
         });
 
         // Mute toggle
-        this.elements.muteToggle?.addEventListener('change', (e: Event) => {
-            this.isMuted = (e.target as HTMLInputElement).checked;
+        this.elements.muteToggle?.addEventListener('click', () => {
+            this.isMuted = !this.isMuted;
+            this.elements.muteToggle.classList.toggle('active', this.isMuted);
         });
 
         // Bitrate slider
