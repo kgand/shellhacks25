@@ -278,23 +278,6 @@ class ScreenCapture:
         self.audio_chunk_count = 0
             
         try:
-            # Connect to backend with retry logic
-            connection_success = False
-            for attempt in range(self.max_retries):
-                try:
-                    await self._connect_to_backend()
-                    connection_success = True
-                    break
-                except Exception as e:
-                    self.connection_retries += 1
-                    logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
-                    if attempt < self.max_retries - 1:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-            
-            if not connection_success:
-                logger.error("Failed to connect to backend after all retries")
-                return False
-            
             # Start audio capture with error handling
             try:
                 self.audio_capture.start_recording()
@@ -303,7 +286,7 @@ class ScreenCapture:
                 logger.warning(f"Audio capture failed to start: {e}")
                 # Continue without audio if it fails
             
-            # Start capture thread
+            # Start capture thread (WebSocket connection will be established in the thread)
             self.is_capturing = True
             self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.capture_thread.start()
@@ -406,6 +389,31 @@ class ScreenCapture:
         # Performance monitoring
         frame_times = []
         max_frame_times = 10  # Keep last 10 frame times for adaptive timing
+        
+        # Establish WebSocket connection in this thread
+        try:
+            connection_success = False
+            for attempt in range(self.max_retries):
+                try:
+                    self.websocket = loop.run_until_complete(websockets.connect(self.backend_url))
+                    connection_success = True
+                    logger.info("Connected to backend from capture thread")
+                    break
+                except Exception as e:
+                    self.connection_retries += 1
+                    logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                    if attempt < self.max_retries - 1:
+                        loop.run_until_complete(asyncio.sleep(2 ** attempt))  # Exponential backoff
+            
+            if not connection_success:
+                logger.error("Failed to connect to backend after all retries")
+                self.is_capturing = False
+                return
+                
+        except Exception as e:
+            logger.error(f"Failed to establish WebSocket connection: {e}")
+            self.is_capturing = False
+            return
         
         try:
             while self.is_capturing:
@@ -548,70 +556,78 @@ class ScreenCapture:
     async def _send_frame(self, frame: np.ndarray, frame_count: int):
         """Optimized frame sending to backend with better compression"""
         try:
-            if self.websocket and not self.websocket.closed:
-                # Adaptive JPEG quality based on frame size
-                height, width = frame.shape[:2]
-                total_pixels = height * width
+            # Validate WebSocket connection
+            if not self.websocket:
+                logger.error("WebSocket connection is None")
+                return
                 
-                # Adjust quality based on frame size
-                if total_pixels > 800000:  # Large frames
-                    quality = 60
-                elif total_pixels > 400000:  # Medium frames
-                    quality = 70
-                else:  # Small frames
-                    quality = 80
+            if self.websocket.closed:
+                logger.error("WebSocket connection is closed")
+                return
+            
+            # Adaptive JPEG quality based on frame size
+            height, width = frame.shape[:2]
+            total_pixels = height * width
+            
+            # Adjust quality based on frame size
+            if total_pixels > 800000:  # Large frames
+                quality = 60
+            elif total_pixels > 400000:  # Medium frames
+                quality = 70
+            else:  # Small frames
+                quality = 80
+            
+            # Optimize JPEG encoding for better performance
+            encode_params = [
+                cv2.IMWRITE_JPEG_QUALITY, quality,
+                cv2.IMWRITE_JPEG_OPTIMIZE, 1,  # Enable optimization
+                cv2.IMWRITE_JPEG_PROGRESSIVE, 1  # Progressive JPEG for better compression
+            ]
+            
+            _, buffer = cv2.imencode('.jpg', frame, encode_params)
+            frame_data = buffer.tobytes()
+            
+            # Dynamic size limit based on frame count (allow larger frames occasionally)
+            max_size = 300000 if frame_count % 5 == 0 else 200000  # 300KB every 5th frame, 200KB otherwise
+            
+            if len(frame_data) < max_size:
+                message = {
+                    "type": "video_frame",
+                    "frame_count": frame_count,
+                    "timestamp": datetime.now().isoformat(),
+                    "data": frame_data.hex(),
+                    "size": len(frame_data),
+                    "quality": quality,
+                    "dimensions": f"{width}x{height}"
+                }
                 
-                # Optimize JPEG encoding for better performance
-                encode_params = [
-                    cv2.IMWRITE_JPEG_QUALITY, quality,
-                    cv2.IMWRITE_JPEG_OPTIMIZE, 1,  # Enable optimization
-                    cv2.IMWRITE_JPEG_PROGRESSIVE, 1  # Progressive JPEG for better compression
-                ]
+                await self.websocket.send(json.dumps(message))
                 
-                _, buffer = cv2.imencode('.jpg', frame, encode_params)
-                frame_data = buffer.tobytes()
-                
-                # Dynamic size limit based on frame count (allow larger frames occasionally)
-                max_size = 300000 if frame_count % 5 == 0 else 200000  # 300KB every 5th frame, 200KB otherwise
-                
-                if len(frame_data) < max_size:
-                    message = {
-                        "type": "video_frame",
-                        "frame_count": frame_count,
-                        "timestamp": datetime.now().isoformat(),
-                        "data": frame_data.hex(),
-                        "size": len(frame_data),
-                        "quality": quality,
-                        "dimensions": f"{width}x{height}"
-                    }
+                # Reduced logging frequency with more useful info
+                if frame_count % 20 == 0:
+                    logger.info(f"Sent frame {frame_count} ({len(frame_data)} bytes, {width}x{height}, quality={quality})")
+            else:
+                # Try with lower quality if frame is too large
+                if quality > 40:
+                    encode_params[1] = max(40, quality - 20)  # Reduce quality
+                    _, buffer = cv2.imencode('.jpg', frame, encode_params)
+                    frame_data = buffer.tobytes()
                     
-                    await self.websocket.send(json.dumps(message))
-                    
-                    # Reduced logging frequency with more useful info
-                    if frame_count % 20 == 0:
-                        logger.info(f"Sent frame {frame_count} ({len(frame_data)} bytes, {width}x{height}, quality={quality})")
-                else:
-                    # Try with lower quality if frame is too large
-                    if quality > 40:
-                        encode_params[1] = max(40, quality - 20)  # Reduce quality
-                        _, buffer = cv2.imencode('.jpg', frame, encode_params)
-                        frame_data = buffer.tobytes()
-                        
-                        if len(frame_data) < max_size:
-                            message = {
-                                "type": "video_frame",
-                                "frame_count": frame_count,
-                                "timestamp": datetime.now().isoformat(),
-                                "data": frame_data.hex(),
-                                "size": len(frame_data),
-                                "quality": encode_params[1],
-                                "dimensions": f"{width}x{height}"
-                            }
-                            await self.websocket.send(json.dumps(message))
-                        else:
-                            logger.warning(f"Frame {frame_count} still too large after quality reduction ({len(frame_data)} bytes), skipping")
+                    if len(frame_data) < max_size:
+                        message = {
+                            "type": "video_frame",
+                            "frame_count": frame_count,
+                            "timestamp": datetime.now().isoformat(),
+                            "data": frame_data.hex(),
+                            "size": len(frame_data),
+                            "quality": encode_params[1],
+                            "dimensions": f"{width}x{height}"
+                        }
+                        await self.websocket.send(json.dumps(message))
                     else:
-                        logger.warning(f"Frame {frame_count} too large ({len(frame_data)} bytes), skipping")
+                        logger.warning(f"Frame {frame_count} still too large after quality reduction ({len(frame_data)} bytes), skipping")
+                else:
+                    logger.warning(f"Frame {frame_count} too large ({len(frame_data)} bytes), skipping")
                 
         except Exception as e:
             logger.error(f"Error sending frame: {e}")
@@ -619,15 +635,23 @@ class ScreenCapture:
     async def _send_audio(self, audio_data: bytes):
         """Send audio data to backend"""
         try:
-            if self.websocket and not self.websocket.closed:
-                # Create message
-                message = {
-                    "type": "audio_chunk",
-                    "timestamp": datetime.now().isoformat(),
-                    "data": audio_data.hex()  # Convert to hex string for JSON
-                }
+            # Validate WebSocket connection
+            if not self.websocket:
+                logger.error("WebSocket connection is None for audio")
+                return
                 
-                await self.websocket.send(json.dumps(message))
+            if self.websocket.closed:
+                logger.error("WebSocket connection is closed for audio")
+                return
+            
+            # Create message
+            message = {
+                "type": "audio_chunk",
+                "timestamp": datetime.now().isoformat(),
+                "data": audio_data.hex()  # Convert to hex string for JSON
+            }
+            
+            await self.websocket.send(json.dumps(message))
                 
         except Exception as e:
             logger.error(f"Error sending audio: {e}")
