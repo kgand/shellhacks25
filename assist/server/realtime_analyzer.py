@@ -42,6 +42,10 @@ class RealtimeAnalyzer:
         self.latest_audio_analysis = None
         self.analysis_stream_active = False
         
+        # Frame and audio tracking for continuous processing
+        self.processed_frames = set()  # Track processed frame files
+        self.processed_audio_files = set()  # Track processed audio files
+        
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -181,7 +185,7 @@ class RealtimeAnalyzer:
         return None
     
     def _analyze_latest_frames(self, capture_dir: str):
-        """Analyze the latest captured frames"""
+        """Analyze new captured frames that haven't been processed yet"""
         try:
             # Get all frame files
             frame_files = [f for f in os.listdir(capture_dir) if f.endswith('.jpg')]
@@ -189,134 +193,163 @@ class RealtimeAnalyzer:
                 logger.debug("No frame files found in capture directory")
                 return
             
-            # Sort by modification time to get latest
-            frame_files.sort(key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)))
+            # Sort by modification time to get newest first
+            frame_files.sort(key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)), reverse=True)
             
-            # Analyze the most recent frame
-            latest_frame = frame_files[-1]
-            frame_path = os.path.join(capture_dir, latest_frame)
+            # Process new frames that haven't been analyzed yet
+            new_frames = [f for f in frame_files if f not in self.processed_frames]
             
-            logger.debug(f"Analyzing latest frame: {latest_frame}")
+            if not new_frames:
+                logger.debug("No new frames to analyze")
+                return
             
-            # Load and analyze frame
-            frame = cv2.imread(frame_path)
-            if frame is not None:
-                # Check if Ollama is available before attempting analysis
-                if not self.ollama_client.is_available():
-                    logger.warning("Ollama is not available, skipping frame analysis")
-                    return
+            logger.info(f"Found {len(new_frames)} new frames to analyze")
+            
+            # Check if Ollama is available before attempting analysis
+            if not self.ollama_client.is_available():
+                logger.warning("Ollama is not available, skipping frame analysis")
+                return
+            
+            # Process up to 3 newest frames to avoid overwhelming the system
+            frames_to_process = new_frames[:3]
+            
+            for frame_file in frames_to_process:
+                frame_path = os.path.join(capture_dir, frame_file)
+                logger.debug(f"Analyzing new frame: {frame_file}")
                 
-                # Messenger-specific analysis prompt
-                system_prompt = """You are analyzing a Messenger video call or chat interface. 
-                Focus on identifying people, their expressions, gestures, and any text or UI elements visible.
-                Describe the scene concisely in under 200 characters."""
+                # Load and analyze frame
+                frame = cv2.imread(frame_path)
+                if frame is not None:
+                    # Messenger-specific analysis prompt
+                    system_prompt = """You are analyzing a Messenger video call or chat interface. 
+                    Focus on identifying people, their expressions, gestures, and any text or UI elements visible.
+                    Describe the scene concisely in under 200 characters."""
+                    
+                    user_query = "What do you see in this Messenger interface? Focus on people, expressions, and any visible text."
+                    
+                    try:
+                        analysis = self.ollama_client.analyze_frame(
+                            frame, 
+                            system_prompt=system_prompt,
+                            user_query=user_query
+                        )
+                    except Exception as e:
+                        logger.error(f"Error analyzing frame {frame_file} with Ollama: {e}")
+                        continue
                 
-                user_query = "What do you see in this Messenger interface? Focus on people, expressions, and any visible text."
-                
-                try:
-                    analysis = self.ollama_client.analyze_frame(
-                        frame, 
-                        system_prompt=system_prompt,
-                        user_query=user_query
-                    )
-                except Exception as e:
-                    logger.error(f"Error analyzing frame with Ollama: {e}")
-                    return
-                
-                # Store analysis result
-                result = {
-                    "timestamp": datetime.now().isoformat(),
-                    "frame_file": latest_frame,
-                    "analysis": analysis
-                }
-                
-                self.frame_analysis_results.append(result)
-                self.latest_frame_analysis = result
-                
-                # Keep only last 50 results to avoid memory issues
-                if len(self.frame_analysis_results) > 50:
-                    self.frame_analysis_results = self.frame_analysis_results[-50:]
-                
-                # Create real-time output entry
-                realtime_output = {
-                    "type": "frame_analysis",
-                    "timestamp": datetime.now().isoformat(),
-                    "content": analysis,
-                    "frame_file": latest_frame,
-                    "session_id": getattr(self, 'session_id', None)
-                }
-                
-                self.realtime_outputs.append(realtime_output)
-                
-                # Keep only last 100 real-time outputs
-                if len(self.realtime_outputs) > 100:
-                    self.realtime_outputs = self.realtime_outputs[-100:]
-                
-                # Call callbacks if set
-                if self.on_frame_analyzed:
-                    self.on_frame_analyzed(result)
-                
-                if self.on_realtime_output:
-                    self.on_realtime_output(realtime_output)
-                
-                logger.info(f"Analyzed frame: {latest_frame}")
-                logger.info(f"Real-time output: {analysis[:100]}...")
+                    # Store analysis result
+                    result = {
+                        "timestamp": datetime.now().isoformat(),
+                        "frame_file": frame_file,
+                        "analysis": analysis
+                    }
+                    
+                    self.frame_analysis_results.append(result)
+                    self.latest_frame_analysis = result
+                    
+                    # Mark frame as processed
+                    self.processed_frames.add(frame_file)
+                    
+                    # Keep only last 50 results to avoid memory issues
+                    if len(self.frame_analysis_results) > 50:
+                        self.frame_analysis_results = self.frame_analysis_results[-50:]
+                    
+                    # Create real-time output entry
+                    realtime_output = {
+                        "type": "frame_analysis",
+                        "timestamp": datetime.now().isoformat(),
+                        "content": analysis,
+                        "frame_file": frame_file,
+                        "session_id": getattr(self, 'session_id', None)
+                    }
+                    
+                    self.realtime_outputs.append(realtime_output)
+                    
+                    # Keep only last 100 real-time outputs
+                    if len(self.realtime_outputs) > 100:
+                        self.realtime_outputs = self.realtime_outputs[-100:]
+                    
+                    # Call callbacks if set
+                    if self.on_frame_analyzed:
+                        self.on_frame_analyzed(result)
+                    
+                    if self.on_realtime_output:
+                        self.on_realtime_output(realtime_output)
+                    
+                    logger.info(f"Analyzed frame: {frame_file}")
+                    logger.info(f"Real-time output: {analysis[:100]}...")
                 
         except Exception as e:
             logger.error(f"Error analyzing frames: {e}")
     
     def _process_audio_files(self, capture_dir: str):
-        """Process audio files for transcription"""
+        """Process new audio files for transcription"""
         try:
             # Get audio files
             audio_files = [f for f in os.listdir(capture_dir) if f.endswith('.wav')]
             if not audio_files:
                 return
             
-            # Process the most recent audio file
-            latest_audio = max(audio_files, key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)))
-            audio_path = os.path.join(capture_dir, latest_audio)
+            # Sort by modification time to get newest first
+            audio_files.sort(key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)), reverse=True)
             
-            # Check if we've already processed this file
-            if any(result.get("file_path") == audio_path for result in self.audio_analysis_results):
+            # Process new audio files that haven't been processed yet
+            new_audio_files = [f for f in audio_files if f not in self.processed_audio_files]
+            
+            if not new_audio_files:
+                logger.debug("No new audio files to process")
                 return
             
-            # Process audio file
-            audio_result = self.audio_processor.process_audio_file(audio_path)
+            logger.info(f"Found {len(new_audio_files)} new audio files to process")
             
-            if audio_result["status"] == "success":
-                self.audio_analysis_results.append(audio_result)
-                self.latest_audio_analysis = audio_result
+            # Process up to 2 newest audio files to avoid overwhelming the system
+            audio_files_to_process = new_audio_files[:2]
+            
+            for audio_file in audio_files_to_process:
+                audio_path = os.path.join(capture_dir, audio_file)
+                logger.debug(f"Processing new audio file: {audio_file}")
                 
-                # Update combined transcription
-                if audio_result.get("transcription"):
-                    if self.audio_transcription:
-                        self.audio_transcription += f"\n\n--- {latest_audio} ---\n"
-                    else:
-                        self.audio_transcription = f"--- {latest_audio} ---\n"
-                    self.audio_transcription += audio_result["transcription"]
+                # Process audio file
+                audio_result = self.audio_processor.process_audio_file(audio_path)
                 
-                # Create real-time output entry for audio
-                realtime_output = {
-                    "type": "audio_analysis",
-                    "timestamp": datetime.now().isoformat(),
-                    "content": audio_result.get("transcription", "Audio processed"),
-                    "audio_file": latest_audio,
-                    "session_id": getattr(self, 'session_id', None)
-                }
-                
-                self.realtime_outputs.append(realtime_output)
-                
-                # Keep only last 100 real-time outputs
-                if len(self.realtime_outputs) > 100:
-                    self.realtime_outputs = self.realtime_outputs[-100:]
-                
-                # Call real-time output callback if set
-                if self.on_realtime_output:
-                    self.on_realtime_output(realtime_output)
-                
-                logger.info(f"Processed audio file: {latest_audio}")
-                logger.info(f"Real-time audio output: {audio_result.get('transcription', 'Audio processed')[:100]}...")
+                if audio_result["status"] == "success":
+                    self.audio_analysis_results.append(audio_result)
+                    self.latest_audio_analysis = audio_result
+                    
+                    # Mark audio file as processed
+                    self.processed_audio_files.add(audio_file)
+                    
+                    # Update combined transcription
+                    if audio_result.get("transcription"):
+                        if self.audio_transcription:
+                            self.audio_transcription += f"\n\n--- {audio_file} ---\n"
+                        else:
+                            self.audio_transcription = f"--- {audio_file} ---\n"
+                        self.audio_transcription += audio_result["transcription"]
+                    
+                    # Create real-time output entry for audio
+                    realtime_output = {
+                        "type": "audio_analysis",
+                        "timestamp": datetime.now().isoformat(),
+                        "content": audio_result.get("transcription", "Audio processed"),
+                        "audio_file": audio_file,
+                        "session_id": getattr(self, 'session_id', None)
+                    }
+                    
+                    self.realtime_outputs.append(realtime_output)
+                    
+                    # Keep only last 100 real-time outputs
+                    if len(self.realtime_outputs) > 100:
+                        self.realtime_outputs = self.realtime_outputs[-100:]
+                    
+                    # Call real-time output callback if set
+                    if self.on_realtime_output:
+                        self.on_realtime_output(realtime_output)
+                    
+                    logger.info(f"Processed audio file: {audio_file}")
+                    logger.info(f"Real-time audio output: {audio_result.get('transcription', 'Audio processed')[:100]}...")
+                else:
+                    logger.warning(f"Failed to process audio file {audio_file}: {audio_result.get('error', 'Unknown error')}")
                 
         except Exception as e:
             logger.error(f"Error processing audio: {e}")

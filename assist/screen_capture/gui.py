@@ -469,25 +469,17 @@ class SimpleCaptureGUI:
         self.settings_button = ttk.Button(button_frame, text="⚙️ Settings", command=self._show_settings)
         self.settings_button.grid(row=0, column=2, sticky=(tk.W, tk.E))
         
-        # Add process button
-        self.process_button = ttk.Button(button_frame, text="🔄 Process Files", command=self._process_captured_files)
-        self.process_button.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-        # Add AI analysis button
-        self.ai_analysis_button = ttk.Button(button_frame, text="🤖 Start AI Analysis", command=self._start_ai_analysis)
-        self.ai_analysis_button.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-        # Add real-time output button
+        # Add real-time output button (manual control)
         self.realtime_output_button = ttk.Button(button_frame, text="📊 View Real-time Output", command=self._show_realtime_output)
-        self.realtime_output_button.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        self.realtime_output_button.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         
         # Progress bar
         self.progress = ttk.Progressbar(control_frame, mode='indeterminate')
-        self.progress.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
+        self.progress.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
         
         # Status info
         self.capture_info = ttk.Label(control_frame, text="Ready to capture", style='Info.TLabel')
-        self.capture_info.grid(row=4, column=0, sticky=tk.W, pady=(10, 0))
+        self.capture_info.grid(row=3, column=0, sticky=tk.W, pady=(10, 0))
     
     def _create_log_section(self, parent):
         """Create log section"""
@@ -710,6 +702,9 @@ class SimpleCaptureGUI:
         self.capture_info.config(text="Capturing audio and video...")
         
         self._log_message("Screen capture started successfully")
+        
+        # Automatically start AI analysis when capture starts
+        self._start_ai_analysis_auto()
     
     def _on_capture_failed(self):
         """Handle failed capture start"""
@@ -732,6 +727,9 @@ class SimpleCaptureGUI:
             # Update status info
             status = self.capture_system.get_status()
             self._log_message(f"Screen capture stopped. Captured {status['frame_count']} frames")
+            
+            # Automatically stop AI analysis when capture stops
+            self._stop_ai_analysis_auto()
             
         except Exception as e:
             self._log_message(f"Error stopping capture: {e}", "ERROR")
@@ -780,8 +778,74 @@ class SimpleCaptureGUI:
         except Exception as e:
             self._log_message(f"Error in manual processing: {e}", "ERROR")
     
+    def _start_ai_analysis_auto(self):
+        """Automatically start AI analysis when capture starts"""
+        try:
+            self._log_message("Auto-starting AI analysis...")
+            
+            # Check if server is running
+            import requests
+            try:
+                response = requests.get("http://127.0.0.1:8000/health", timeout=5)
+                if response.status_code != 200:
+                    self._log_message("Server is not running. Please start the server first.", "ERROR")
+                    return
+            except:
+                self._log_message("Cannot connect to server. Please start the server first.", "ERROR")
+                return
+            
+            # Create a session for AI analysis
+            session_data = {"ai_analysis": True, "timestamp": datetime.now().isoformat()}
+            session_response = requests.post("http://127.0.0.1:8000/sessions", json=session_data)
+            
+            if session_response.status_code == 200:
+                session_id = session_response.json()["session_id"]
+                self._log_message(f"Created AI analysis session: {session_id}")
+                
+                # Start real-time analysis
+                analysis_response = requests.post(f"http://127.0.0.1:8000/start-analysis/{session_id}")
+                
+                if analysis_response.status_code == 200:
+                    self._log_message("AI analysis started automatically", "SUCCESS")
+                    self.capture_info.config(text="AI analysis in progress...")
+                    self.realtime_status.config(text="Real-time: Analysis Active ✓", style='Status.TLabel')
+                    
+                    # Start monitoring analysis in background
+                    self._monitor_ai_analysis(session_id)
+                    
+                    # Auto-open real-time output window
+                    self._show_realtime_output_auto()
+                else:
+                    self._log_message(f"Failed to start AI analysis: {analysis_response.status_code}", "ERROR")
+            else:
+                self._log_message(f"Failed to create session: {session_response.status_code}", "ERROR")
+                
+        except Exception as e:
+            self._log_message(f"Error starting AI analysis: {e}", "ERROR")
+    
+    def _stop_ai_analysis_auto(self):
+        """Automatically stop AI analysis when capture stops"""
+        try:
+            import requests
+            
+            # Stop real-time analysis
+            response = requests.post("http://127.0.0.1:8000/stop-analysis", timeout=5)
+            
+            if response.status_code == 200:
+                self._log_message("AI analysis stopped automatically", "SUCCESS")
+                self.capture_info.config(text="AI analysis stopped")
+                self.realtime_status.config(text="Real-time: Ready", style='Info.TLabel')
+                
+                # Auto-close real-time output window
+                self._close_realtime_output_auto()
+            else:
+                self._log_message(f"Failed to stop AI analysis: {response.status_code}", "ERROR")
+                
+        except Exception as e:
+            self._log_message(f"Error stopping AI analysis: {e}", "ERROR")
+    
     def _start_ai_analysis(self):
-        """Start AI analysis of captured content"""
+        """Start AI analysis of captured content (manual)"""
         try:
             self._log_message("Starting AI analysis...")
             
@@ -1058,6 +1122,25 @@ class SimpleCaptureGUI:
                 self._refresh_realtime_output()
                 # Schedule next refresh
                 self.realtime_window.after(2000, self._start_auto_refresh)  # Refresh every 2 seconds
+    
+    def _show_realtime_output_auto(self):
+        """Automatically show real-time output window when capture starts"""
+        try:
+            # Only show if not already open
+            if not hasattr(self, 'realtime_window') or not self.realtime_window.winfo_exists():
+                self._show_realtime_output()
+                self._log_message("Real-time output window opened automatically")
+        except Exception as e:
+            self._log_message(f"Error auto-opening real-time window: {e}", "ERROR")
+    
+    def _close_realtime_output_auto(self):
+        """Automatically close real-time output window when capture stops"""
+        try:
+            if hasattr(self, 'realtime_window') and self.realtime_window.winfo_exists():
+                self.realtime_window.destroy()
+                self._log_message("Real-time output window closed automatically")
+        except Exception as e:
+            self._log_message(f"Error auto-closing real-time window: {e}", "ERROR")
     
     def _open_messenger(self):
         """Open Messenger in browser"""
