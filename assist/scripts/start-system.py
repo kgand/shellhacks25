@@ -70,16 +70,30 @@ def main():
         print("✅ Backend is already running")
     else:
         print("🔄 Starting backend server...")
+        print("   Note: Backend will start in the background")
+        print("   You can test it by visiting: http://127.0.0.1:8000/health")
+        print("   Press Ctrl+C to stop the backend when done")
         
-        # Start the backend
-        backend_cmd = "cd assist/server && uvicorn app:app --host 0.0.0.0 --port 8000 --reload"
-        success, stdout, stderr = run_command(backend_cmd)
+        # Start the backend (this will run in foreground)
+        import subprocess
+        import sys
         
-        if not success:
-            print(f"❌ Failed to start backend: {stderr}")
+        try:
+            # Change to server directory and start uvicorn
+            import os
+            os.chdir("assist/server")
+            subprocess.run([
+                sys.executable, "-m", "uvicorn", 
+                "app_simple:app", 
+                "--host", "127.0.0.1", 
+                "--port", "8000", 
+                "--reload"
+            ])
+        except KeyboardInterrupt:
+            print("\n⏹️  Backend stopped by user")
+        except Exception as e:
+            print(f"❌ Failed to start backend: {e}")
             sys.exit(1)
-        
-        print("✅ Backend started successfully")
     
     # Check Chrome extension
     print("🔍 Checking Chrome extension...")
