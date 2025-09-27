@@ -1,12 +1,13 @@
 # Messenger AI Assistant
 
-A professional screen capture and AI processing system for Messenger Web conversations. This system captures audio and video from Messenger Web using Python screen detection, processes it through a FastAPI backend, and uses AI agents for conversation analysis, summarization, and memory storage.
+A professional screen capture and AI processing system for Messenger Web conversations. This system captures audio and video from Messenger Web using Python screen detection, processes it through a FastAPI backend, and uses Ollama AI models for real-time conversation analysis and summarization.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Python 3.8+
 - Windows 10/11 or macOS 10.15+
+- Ollama installed and running
 - Audio drivers (for audio capture)
 
 ### Installation
@@ -17,7 +18,18 @@ A professional screen capture and AI processing system for Messenger Web convers
    cd shellhacks25
    ```
 
-2. **Run setup**
+2. **Install Ollama**
+   ```bash
+   # Download from https://ollama.ai
+   # Start Ollama service
+   ollama serve
+   
+   # Pull required models
+   ollama pull gemma3:4b
+   ollama pull qwen3:8b
+   ```
+
+3. **Run setup**
    ```bash
    # Cross-platform setup
    python setup.py
@@ -30,7 +42,7 @@ A professional screen capture and AI processing system for Messenger Web convers
    powershell -ExecutionPolicy Bypass -File start.ps1
    ```
 
-3. **Start the application**
+4. **Start the application**
    ```bash
    python start.py
    ```
@@ -38,7 +50,7 @@ A professional screen capture and AI processing system for Messenger Web convers
 ## 🏗️ Architecture
 
 ```
-Python Screen Capture → FastAPI Backend → AI Processing → Memory Storage
+Python Screen Capture → FastAPI Backend → Ollama AI Processing → File Storage
 ```
 
 ### Components
@@ -56,10 +68,11 @@ Python Screen Capture → FastAPI Backend → AI Processing → Memory Storage
    - Auto-processing pipeline
 
 3. **AI Processing** (`assist/server/`)
-   - Gemini Live API integration
-   - ADK Agent Development Kit
-   - Memory storage with Firestore
-   - Conversation analysis and summarization
+   - Ollama VLM integration (gemma3:4b)
+   - Ollama LLM integration (qwen3:8b)
+   - Real-time frame analysis
+   - Audio transcription and processing
+   - Conversation summarization
 
 ## 📁 Project Structure
 
@@ -71,13 +84,13 @@ assist/
 │   └── requirements.txt    # Dependencies
 ├── server/                  # Backend API
 │   ├── app.py              # FastAPI server
-│   ├── adk_agents.py       # AI agents
-│   ├── gemini_live.py      # Gemini integration
-│   ├── memory/             # Memory storage
-│   ├── models/             # Data schemas
-│   ├── prompts/            # AI prompts
+│   ├── ollama_client.py    # Ollama AI integration
+│   ├── realtime_analyzer.py # Real-time analysis
+│   ├── audio_processor.py  # Audio processing
+│   ├── summarization_service.py # AI summarization
+│   ├── integration_test.py # Testing framework
 │   └── requirements.txt    # Backend dependencies
-├── launcher.py             # System launcher
+├── start_ollama_integration.py # Main launcher
 └── README.md               # Documentation
 ```
 
@@ -91,35 +104,49 @@ assist/
 - **Color Correction**: Fixes blue tint issues in captured frames
 
 ### AI Processing
-- **Conversation Summarization**: AI-powered conversation summaries
-- **Action Item Extraction**: Identifies and categorizes action items
-- **Relationship Mining**: Discovers relationships between people
-- **Memory Storage**: Persistent memory with Firestore integration
-- **Revive API**: Intelligent memory recall and assembly
+- **Real-time VLM Analysis**: Frame-by-frame visual understanding using gemma3:4b
+- **Audio Transcription**: Multi-format audio processing and transcription
+- **Conversation Summarization**: AI-powered conversation summaries using qwen3:8b
+- **Multi-modal Integration**: Visual + audio content analysis
+- **Comprehensive Summaries**: Multiple summary types (brief, detailed, key points, timeline)
 
 ### Backend API
-- **RESTful Endpoints**: Complete API for file management
+- **RESTful Endpoints**: Complete API for file management and AI processing
 - **Session Management**: Organized capture sessions
 - **Auto-Processing**: Automatic file processing pipeline
+- **Real-time Analysis**: Continuous AI analysis of captured content
 - **Statistics**: Usage tracking and monitoring
 
 ## 🚀 Usage
 
 ### Screen Capture Application
 
-1. **Open Messenger Web** in your browser (messenger.com)
-2. **Run the launcher**: `python start.py`
-3. **Select a Messenger window** from the GUI
-4. **Click "Start Capture"** to begin recording
-5. **Files are saved** to `assist/screen_capture/capture_output/`
+1. **Start Ollama** (if not already running)
+   ```bash
+   ollama serve
+   ```
+
+2. **Open Messenger Web** in your browser (messenger.com)
+
+3. **Run the launcher**: `python start.py`
+
+4. **Select a Messenger window** from the GUI
+
+5. **Click "Start Capture"** to begin recording
+
+6. **Click "Start AI Analysis"** for real-time AI processing
+
+7. **Files are saved** to `assist/screen_capture/capture_output/` and `assist/server/processed/`
 
 ### API Endpoints
 
 - `GET /health` - System health check
-- `POST /sessions` - Create capture session
-- `POST /upload/{session_id}` - Upload files
-- `POST /auto-process` - Process captured files
-- `GET /stats` - System statistics
+- `GET /ollama-status` - Ollama service status
+- `POST /analyze-frame` - Analyze single frame with VLM
+- `POST /process-text` - Process text with LLM
+- `POST /start-analysis/{session_id}` - Start real-time analysis
+- `GET /analysis-status` - Get analysis results
+- `POST /generate-summary/{session_id}` - Generate session summary
 
 ### Example API Usage
 
@@ -127,34 +154,51 @@ assist/
 # Check health
 curl http://localhost:8000/health
 
-# Auto-process captured files
-curl -X POST http://localhost:8000/auto-process
+# Check Ollama status
+curl http://localhost:8000/ollama-status
 
-# Get statistics
-curl http://localhost:8000/stats
+# Start real-time analysis
+curl -X POST http://localhost:8000/start-analysis/session_123
+
+# Get analysis results
+curl http://localhost:8000/analysis-status
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Ollama Setup
 
-Create a `.env` file with:
+1. **Install Ollama**
+   ```bash
+   # Download from https://ollama.ai
+   # Start Ollama service
+   ollama serve
+   ```
 
-```env
-# Google Cloud Configuration
-GOOGLE_PROJECT_ID=your-project-id
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account-key.json
+2. **Pull Required Models**
+   ```bash
+   # Vision model for frame analysis
+   ollama pull gemma3:4b
+   
+   # Text model for summarization
+   ollama pull qwen3:8b
+   ```
 
-# Gemini API Configuration
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL_LIVE=gemini-2.0-flash-live-001
-```
+3. **Verify Installation**
+   ```bash
+   # Check if models are available
+   ollama list
+   
+   # Test Ollama API
+   curl http://localhost:11434/api/tags
+   ```
 
 ### GUI Settings
 
 - **Frame Rate**: 10, 15, 20, 30 FPS
 - **Quality**: Low, Medium, High
 - **Audio**: Enable/Disable audio capture
+- **AI Analysis**: Enable/Disable real-time AI processing
 
 ## 📊 Output Files
 
@@ -168,15 +212,21 @@ GEMINI_MODEL_LIVE=gemini-2.0-flash-live-001
 - **Location**: `assist/screen_capture/capture_output/`
 - **Specs**: 44.1kHz, 16-bit, Stereo
 
+### AI Analysis Results
+- **Analysis Results**: `assist/server/processed/{session_id}/analysis_results.json`
+- **Conversation Summary**: `assist/server/processed/{session_id}/conversation_summary.json`
+- **Processed Files**: `assist/server/processed/{session_id}/`
+
 ## 🛠️ Development
 
 ### Available Commands
 
 ```bash
-python start.py                    # Start complete system
-python assist/server/app.py       # Start backend only
-python assist/screen_capture/gui.py # Start GUI only
-python setup.py                   # Install dependencies
+python start.py                                    # Start complete system
+python assist/start_ollama_integration.py         # Start with Ollama integration
+python assist/server/app.py                       # Start backend only
+python assist/screen_capture/gui.py               # Start GUI only
+python setup.py                                   # Install dependencies
 ```
 
 ### Testing
@@ -186,6 +236,10 @@ python setup.py                   # Install dependencies
 python -c "import assist.server.app; print('Backend OK')"
 python -c "import assist.screen_capture.screen_capture; print('Capture OK')"
 python -c "import assist.screen_capture.gui; print('GUI OK')"
+
+# Test Ollama integration
+python assist/server/integration_test.py
+python assist/server/test_ollama_client.py
 ```
 
 ## 🐛 Troubleshooting
@@ -197,15 +251,25 @@ python -c "import assist.screen_capture.gui; print('GUI OK')"
    - Check window title contains "messenger"
    - Try refreshing the window list
 
-2. **Audio capture fails**
+2. **Ollama not available**
+   - Ensure Ollama is running: `ollama serve`
+   - Check models are pulled: `ollama list`
+   - Verify connection: `curl http://localhost:11434/api/tags`
+
+3. **AI analysis not working**
+   - Check Ollama status: `curl http://localhost:8000/ollama-status`
+   - Ensure required models are installed: `ollama pull gemma3:4b && ollama pull qwen3:8b`
+   - Check server logs for errors
+
+4. **Audio capture fails**
    - Install sounddevice: `pip install sounddevice`
    - Check audio drivers and permissions
 
-3. **Screen capture fails**
+5. **Screen capture fails**
    - Ensure window is visible and not minimized
    - Try selecting a different window
 
-4. **Backend connection fails**
+6. **Backend connection fails**
    - Check if backend is running on port 8000
    - Verify firewall settings
 
