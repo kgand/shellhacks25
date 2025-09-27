@@ -864,7 +864,7 @@ class SimpleCaptureGUI:
         try:
             import sys
             sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
-            from utils.platform_utils import platform_detector
+            from platform_utils import platform_detector
             
             output_dir = os.path.abspath("capture_output")
             if os.path.exists(output_dir):

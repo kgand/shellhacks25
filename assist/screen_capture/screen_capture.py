@@ -22,10 +22,10 @@ import pyautogui
 # Cross-platform imports
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
-from utils.platform_utils import platform_detector
-from utils.window_detector import CrossPlatformWindowDetector, WindowInfo
-from utils.audio_capture import CrossPlatformAudioCapture
-from utils.screen_capture import CrossPlatformScreenCapture, CaptureRegion
+from platform_utils import platform_detector
+from window_detector import CrossPlatformWindowDetector, WindowInfo
+from audio_capture import CrossPlatformAudioCapture
+from screen_capture import CrossPlatformScreenCapture, CaptureRegion
 
 # Audio capture imports
 try:
