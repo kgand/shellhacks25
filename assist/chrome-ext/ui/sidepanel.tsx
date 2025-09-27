@@ -67,15 +67,25 @@ class MessengerAIAssistant {
 
     private async checkBackendConnection() {
         try {
-            const response = await fetch('http://127.0.0.1:8000/health');
+            // Use Chrome extension API to make the request
+            const response = await fetch('http://127.0.0.1:8000/health', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'cors'
+            });
+            
             if (response.ok) {
+                const data = await response.json();
                 this.isConnected = true;
-                this.updateConnectionStatus('Connected', 'Backend ready');
+                this.updateConnectionStatus('Connected', `Backend ready - ${data.connections} connections`);
             } else {
                 this.isConnected = false;
                 this.updateConnectionStatus('Disconnected', 'Backend not responding');
             }
         } catch (error) {
+            console.log('Backend connection error:', error);
             this.isConnected = false;
             this.updateConnectionStatus('Disconnected', 'Backend not available');
         }
