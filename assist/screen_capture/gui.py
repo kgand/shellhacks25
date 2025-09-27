@@ -362,9 +362,12 @@ class SimpleCaptureGUI:
         self.video_status = ttk.Label(status_frame, text="Video: Ready", style='Info.TLabel')
         self.video_status.grid(row=2, column=0, sticky=tk.W, pady=(2, 0))
         
+        self.realtime_status = ttk.Label(status_frame, text="Real-time: Ready", style='Info.TLabel')
+        self.realtime_status.grid(row=3, column=0, sticky=tk.W, pady=(2, 0))
+        
         # Test button
         test_button = ttk.Button(status_frame, text="Test System", command=self._test_system)
-        test_button.grid(row=0, column=1, rowspan=3, sticky=tk.E, padx=(20, 0))
+        test_button.grid(row=0, column=1, rowspan=4, sticky=tk.E, padx=(20, 0))
     
     def _create_window_section(self, parent):
         """Create window selection section"""
@@ -728,9 +731,20 @@ class SimpleCaptureGUI:
             # Test video
             self.video_status.config(text="Video: Ready ✓", style='Status.TLabel')
             
+            # Test real-time analysis
+            try:
+                import requests
+                response = requests.get("http://127.0.0.1:8000/health", timeout=5)
+                if response.status_code == 200:
+                    self.realtime_status.config(text="Real-time: Server Ready ✓", style='Status.TLabel')
+                else:
+                    self.realtime_status.config(text="Real-time: Server Error", style='Error.TLabel')
+            except:
+                self.realtime_status.config(text="Real-time: Server Offline", style='Error.TLabel')
+            
             # Test windows
             windows = self.capture_system.find_windows()
-            self._log_message(f"System test: Audio={audio_available}, Video=Ready, Windows={len(windows)}")
+            self._log_message(f"System test: Audio={audio_available}, Video=Ready, Real-time=Server, Windows={len(windows)}")
             
         except Exception as e:
             self._log_message(f"System test failed: {e}", "ERROR")
@@ -778,6 +792,7 @@ class SimpleCaptureGUI:
                 if analysis_response.status_code == 200:
                     self._log_message("AI analysis started successfully", "SUCCESS")
                     self.capture_info.config(text="AI analysis in progress...")
+                    self.realtime_status.config(text="Real-time: Analysis Active ✓", style='Status.TLabel')
                     
                     # Start monitoring analysis in background
                     self._monitor_ai_analysis(session_id)
@@ -807,10 +822,16 @@ class SimpleCaptureGUI:
                         frame_count = analysis.get("frame_analyses", 0)
                         audio_count = analysis.get("audio_analyses", 0)
                         summary = analysis.get("summary", "")
+                        realtime_outputs_count = analysis.get("realtime_outputs_count", 0)
                         
                         self.root.after(0, lambda: self._update_analysis_display(
-                            frame_count, audio_count, summary
+                            frame_count, audio_count, summary, realtime_outputs_count
                         ))
+                        
+                        # Check for latest real-time output
+                        latest_output = analysis.get("latest_realtime_output")
+                        if latest_output:
+                            self.root.after(0, lambda: self._display_latest_realtime_output(latest_output))
                         
                         # Check if we have a comprehensive summary
                         comprehensive = analysis.get("comprehensive_summary")
@@ -818,7 +839,7 @@ class SimpleCaptureGUI:
                             self.root.after(0, lambda: self._display_comprehensive_summary(comprehensive))
                             break
                     
-                    time.sleep(5)  # Check every 5 seconds
+                    time.sleep(3)  # Check every 3 seconds for more responsive updates
                     
             except Exception as e:
                 self.root.after(0, lambda: self._log_message(f"Error monitoring AI analysis: {e}", "ERROR"))
@@ -828,12 +849,27 @@ class SimpleCaptureGUI:
         monitor_thread_obj = threading.Thread(target=monitor_thread, daemon=True)
         monitor_thread_obj.start()
     
-    def _update_analysis_display(self, frame_count, audio_count, summary):
+    def _update_analysis_display(self, frame_count, audio_count, summary, realtime_outputs_count=0):
         """Update the analysis display"""
-        self.capture_info.config(text=f"AI Analysis: {frame_count} frames, {audio_count} audio files analyzed")
+        self.capture_info.config(text=f"AI Analysis: {frame_count} frames, {audio_count} audio files, {realtime_outputs_count} real-time outputs")
         
         if summary:
             self._log_message(f"Analysis Summary: {summary[:100]}...")
+    
+    def _display_latest_realtime_output(self, latest_output):
+        """Display the latest real-time output in the log"""
+        try:
+            output_type = latest_output.get("type", "unknown")
+            content = latest_output.get("content", "No content")
+            timestamp = latest_output.get("timestamp", "Unknown")
+            
+            # Truncate content for log display
+            display_content = content[:150] + "..." if len(content) > 150 else content
+            
+            self._log_message(f"🤖 Real-time {output_type}: {display_content}")
+            
+        except Exception as e:
+            self._log_message(f"Error displaying latest real-time output: {e}", "ERROR")
     
     def _display_comprehensive_summary(self, comprehensive_summary):
         """Display comprehensive summary"""
