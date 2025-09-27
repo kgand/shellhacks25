@@ -11,20 +11,6 @@ if [[ "$OSTYPE" != "linux-gnu"* && "$OSTYPE" != "darwin"* ]]; then
     exit 1
 fi
 
-# Check Node.js version
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 20+ from https://nodejs.org/"
-    exit 1
-fi
-
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo "❌ Node.js version 20+ is required. Current version: $(node --version)"
-    exit 1
-fi
-
-echo "✅ Node.js version: $(node --version)"
-
 # Check Python version
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is not installed. Please install Python 3.11+ from https://python.org/"
@@ -75,15 +61,14 @@ echo "📦 Installing Python dependencies..."
 cd assist/server
 pip install -r requirements.txt
 
-echo "✅ Python dependencies installed"
+echo "✅ Backend dependencies installed"
 
-# Build Chrome extension
-echo "🔨 Building Chrome extension..."
-cd ../chrome-ext
-npm install
-npm run build
+# Install screen capture dependencies
+echo "📦 Installing screen capture dependencies..."
+cd ../screen_capture
+pip install -r requirements.txt
 
-echo "✅ Chrome extension built"
+echo "✅ Screen capture dependencies installed"
 
 # Create directories
 echo "📁 Creating necessary directories..."
@@ -97,7 +82,8 @@ echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Edit .env file with your Google Cloud project details"
-echo "2. Run 'make dev' to start the development server"
-echo "3. Load the Chrome extension from chrome-ext/dist directory"
+echo "2. Run 'python assist/launcher.py' to start the application"
+echo "3. Open Messenger Web in your browser"
+echo "4. Use the screen capture GUI to start recording"
 echo ""
 echo "For more information, see docs/README.md"

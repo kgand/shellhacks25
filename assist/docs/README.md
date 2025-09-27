@@ -1,16 +1,16 @@
 # Messenger AI Assistant
 
-A production-ready system that captures Messenger Web A/V from a Chrome Extension, streams it to a Python backend, and uses Google Gemini + ADK + Vertex AI Memory Bank to conduct & summarize conversations, extract action items, learn relationships, and persist memories.
+A production-ready system that captures Messenger Web A/V using Python screen detection, streams it to a FastAPI backend, and uses Google Gemini + ADK + Vertex AI Memory Bank to conduct & summarize conversations, extract action items, learn relationships, and persist memories.
 
 ## Architecture
 
 ```
-Chrome Extension (MV3) → FastAPI (Python) → Google (Gemini + ADK + Firestore)
+Python Screen Capture → FastAPI (Python) → Google (Gemini + ADK + Firestore)
 ```
 
 ## Features
 
-- **Chrome Extension (MV3)**: Side Panel UI, Offscreen document, tabCapture for A/V
+- **Python Screen Capture**: Desktop application with GUI for capturing Messenger Web
 - **FastAPI Backend**: WebSocket ingest, Gemini Live integration
 - **ADK Agents**: Conversation processing with Memory Bank
 - **Memory System**: Firestore storage with embedding-based retrieval
@@ -20,7 +20,6 @@ Chrome Extension (MV3) → FastAPI (Python) → Google (Gemini + ADK + Firestore
 
 ### Prerequisites
 
-- Node.js 20+
 - Python 3.11+
 - Google Cloud CLI
 - Google Cloud Project with Vertex AI and Firestore enabled
@@ -49,25 +48,21 @@ Chrome Extension (MV3) → FastAPI (Python) → Google (Gemini + ADK + Firestore
    # Edit .env with your Google Cloud project details
    ```
 
-4. **Start development server**
+4. **Start the application**
    ```bash
-   make dev
+   python assist/launcher.py
    ```
-
-5. **Load Chrome extension**
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked" and select `assist/chrome-ext/dist`
 
 ## Usage
 
-### Chrome Extension
+### Screen Capture Application
 
-1. Navigate to Messenger Web (messenger.com)
-2. Click the extension icon to open the side panel
-3. Toggle "I consent to recording my conversations"
-4. Click "Start Capture" (requires user gesture)
-5. The extension will begin recording and streaming to the backend
+1. Open Messenger Web in your browser (messenger.com)
+2. Run the launcher: `python assist/launcher.py`
+3. The screen capture GUI will open automatically
+4. Select a Messenger window from the list
+5. Click "Start Capture" to begin recording
+6. The application will capture both audio and video from the selected window
 
 ### Backend API
 
@@ -97,36 +92,29 @@ curl http://localhost:8000/memories/default/statistics
 ### Available Commands
 
 ```bash
-make dev          # Start development server
-make chrome-build # Build Chrome extension
-make install      # Install all dependencies
-make clean        # Clean build artifacts
-make test         # Run tests
-make lint         # Run linters
-make format       # Format code
+python assist/launcher.py    # Start complete application
+python assist/screen_capture/gui.py  # Start screen capture GUI only
+python assist/server/app.py   # Start backend server only
 ```
 
 ### Project Structure
 
 ```
 assist/
-├── chrome-ext/          # Chrome Extension (MV3)
-│   ├── manifest.json
-│   ├── sw.js
-│   ├── ui/
-│   ├── offscreen.html
-│   └── package.json
+├── screen_capture/      # Python Screen Capture
+│   ├── screen_detector.py
+│   ├── gui.py
+│   ├── requirements.txt
+│   └── __init__.py
 ├── server/              # FastAPI Backend
 │   ├── app.py
-│   ├── ws_ingest.py
-│   ├── gemini_live.py
 │   ├── adk_agents.py
-│   ├── revive_api.py
-│   ├── memory/
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── legacy/
 ├── docs/                # Documentation
 ├── infra/               # Setup scripts
-└── Makefile
+├── launcher.py          # Main launcher script
+└── start.py            # Legacy startup script
 ```
 
 ## Configuration
@@ -167,15 +155,23 @@ FIREBASE_PROJECT_ID=your-firebase-project-id
 
 **Endpoint**: `WS /ingest`
 
-Receives WebM audio/video chunks from Chrome extension.
+Receives audio/video data from Python screen capture application.
 
 **Message Format**:
 ```json
 {
-  "type": "audio_chunk",
-  "data": "base64_encoded_webm_data",
+  "type": "video_frame",
+  "data": "hex_encoded_jpeg_data",
   "timestamp": "2024-01-01T00:00:00Z",
-  "connection_id": "conn_123"
+  "frame_count": 123
+}
+```
+
+```json
+{
+  "type": "audio_chunk", 
+  "data": "hex_encoded_audio_data",
+  "timestamp": "2024-01-01T00:00:00Z"
 }
 ```
 
@@ -212,19 +208,20 @@ Retrieve and assemble memories based on a text cue.
    - Ensure the FastAPI server is running on port 8000
    - Check that WebSocket endpoint is accessible
 
-2. **"Please navigate to Messenger Web first"**
-   - Ensure you're on messenger.com
-   - Refresh the page and try again
+2. **"No Messenger windows found"**
+   - Ensure you have Messenger Web open in your browser
+   - Try refreshing the window list in the GUI
+   - Make sure the browser window title contains "Messenger"
 
 3. **"Memory store not initialized"**
    - Check Google Cloud credentials
    - Verify Firestore is enabled
    - Check environment variables
 
-4. **Chrome extension not loading**
-   - Ensure you're using Chrome (not other browsers)
-   - Check that the extension is built (`make chrome-build`)
-   - Verify manifest.json is valid
+4. **Screen capture not working**
+   - Ensure you have the required dependencies installed
+   - Check that you have proper permissions for screen capture
+   - Try running as administrator (Windows) or with appropriate permissions
 
 ### Debug Mode
 

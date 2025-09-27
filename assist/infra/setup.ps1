@@ -1,7 +1,7 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [switch]$SkipExtensionBuild  # pass -SkipExtensionBuild to skip building the Chrome extension
+    [switch]$SkipScreenCapture  # pass -SkipScreenCapture to skip installing screen capture dependencies
 )
 
 Set-StrictMode -Version Latest
@@ -19,19 +19,6 @@ try {
     }
     Write-Host ("PowerShell version: {0}" -f $PSVersionTable.PSVersion) -ForegroundColor Green
 
-    # Check Node.js version
-    try {
-        $nodeVersion = node --version
-        $nodeMajorVersion = [int]($nodeVersion -replace '^v','' -split '\.')[0]
-        if ($nodeMajorVersion -lt 20) {
-            Write-Host ("Node.js 20+ is required. Current: {0}" -f $nodeVersion) -ForegroundColor Red
-            exit 1
-        }
-        Write-Host ("Node.js version: {0}" -f $nodeVersion) -ForegroundColor Green
-    } catch {
-        Write-Host "Node.js is not installed. Install Node.js 20+ from https://nodejs.org/" -ForegroundColor Red
-        exit 1
-    }
 
     # Check Python version
     try {
@@ -78,19 +65,19 @@ try {
         (Join-Path $repoRoot "server"),
         (Join-Path $repoRoot "assist\server")
     )
-    $extDirCandidates = @(
-        (Join-Path $repoRoot "chrome-ext"),
-        (Join-Path $repoRoot "assist\chrome-ext")
+    $screenCaptureDirCandidates = @(
+        (Join-Path $repoRoot "screen_capture"),
+        (Join-Path $repoRoot "assist\screen_capture")
     )
 
     $serverDir = $serverDirCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    $extDir    = $extDirCandidates    | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $screenCaptureDir = $screenCaptureDirCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
     if (-not $serverDir) {
         throw "Could not locate 'server' directory. Checked:`n  - $($serverDirCandidates -join "`n  - ")"
     }
-    if (-not $extDir) {
-        throw "Could not locate 'chrome-ext' directory. Checked:`n  - $($extDirCandidates -join "`n  - ")"
+    if (-not $screenCaptureDir) {
+        throw "Could not locate 'screen_capture' directory. Checked:`n  - $($screenCaptureDirCandidates -join "`n  - ")"
     }
 
     $envPath    = Join-Path $repoRoot ".env"
@@ -101,7 +88,7 @@ try {
 
     Write-Host "Repo root: $repoRoot" -ForegroundColor DarkGray
     Write-Host "Server dir: $serverDir" -ForegroundColor DarkGray
-    Write-Host "Chrome-ext dir: $extDir" -ForegroundColor DarkGray
+    Write-Host "Screen capture dir: $screenCaptureDir" -ForegroundColor DarkGray
 
     # Set up environment variables
     if (-not (Test-Path $envPath)) {
@@ -132,49 +119,18 @@ try {
         Pop-Location
     }
 
-    # Build Chrome extension (optional / auto-detect)
-    if ($SkipExtensionBuild) {
-        Write-Host "Skipping Chrome extension build (per -SkipExtensionBuild)" -ForegroundColor Yellow
+    # Install screen capture dependencies
+    if ($SkipScreenCapture) {
+        Write-Host "Skipping screen capture dependencies (per -SkipScreenCapture)" -ForegroundColor Yellow
     } else {
-        Push-Location $extDir
+        Push-Location $screenCaptureDir
         try {
-            $pkgJsonPath = Join-Path $extDir "package.json"
-            $hasPackage  = Test-Path $pkgJsonPath
-            $hasBuild    = $false
-
-            if ($hasPackage) {
-                try {
-                    $pkg = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
-                    $hasBuild = $null -ne $pkg.scripts -and $pkg.scripts.PSObject.Properties.Name -contains "build"
-                } catch {
-                    Write-Host "Warning: could not parse package.json; will try to run build if present." -ForegroundColor Yellow
-                }
+            if (-not (Test-Path "requirements.txt")) {
+                throw "requirements.txt not found in $screenCaptureDir"
             }
-
-            if (-not $hasPackage -or -not $hasBuild) {
-                Write-Host "No build step detected for Chrome extension. You can load the folder as an unpacked extension if it contains plain JS/HTML/CSS and a valid manifest.json." -ForegroundColor Yellow
-            } else {
-                Write-Host "Building Chrome extension..." -ForegroundColor Yellow
-
-                # Call npm.cmd to avoid npm.ps1 + StrictMode issues
-                $npmCmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
-                if (-not $npmCmd) {
-                    # common fallback
-                    $npmCmd = Join-Path $env:ProgramFiles "nodejs\npm.cmd"
-                }
-                if (-not (Test-Path $npmCmd)) {
-                    throw "Could not find npm.cmd. Ensure Node.js is installed correctly."
-                }
-
-                if (Test-Path "package-lock.json") {
-                    & $npmCmd ci
-                } else {
-                    & $npmCmd install
-                }
-                & $npmCmd run build
-
-                Write-Host "Chrome extension built" -ForegroundColor Green
-            }
+            Write-Host "Installing screen capture dependencies..." -ForegroundColor Yellow
+            python -m pip install -r requirements.txt
+            Write-Host "Screen capture dependencies installed" -ForegroundColor Green
         } finally {
             Pop-Location
         }
@@ -191,10 +147,9 @@ try {
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Yellow
     Write-Host "1. Edit .env with your Google Cloud project details"
-    Write-Host "2. Run 'make dev' to start the development server"
-    Write-Host "3. Load the Chrome extension:"
-    Write-Host "   - If a build was produced: chrome-ext\dist (or assist\chrome-ext\dist)"
-    Write-Host "   - If no build step: load the source folder directly ONLY if it is plain JS/HTML/CSS with a valid manifest.json"
+    Write-Host "2. Run 'python assist/launcher.py' to start the application"
+    Write-Host "3. Open Messenger Web in your browser"
+    Write-Host "4. Use the screen capture GUI to start recording"
     Write-Host ""
     Write-Host ("For more information, see {0}" -f $docsReadme) -ForegroundColor Cyan
 }
