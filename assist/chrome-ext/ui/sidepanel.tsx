@@ -14,34 +14,39 @@ class MessengerAIAssistant {
 
   private initializeUI() {
     // Get DOM elements
-    const consentToggle = document.getElementById('consentToggle') as HTMLInputElement;
+    const consentToggle = document.getElementById('consentToggle') as HTMLElement;
     const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
-    const muteToggle = document.getElementById('muteToggle') as HTMLInputElement;
+    const captureBtnText = document.getElementById('captureBtnText') as HTMLElement;
+    const muteToggle = document.getElementById('muteToggle') as HTMLElement;
     const bitrateSlider = document.getElementById('bitrateSlider') as HTMLInputElement;
     const bitrateValue = document.getElementById('bitrateValue') as HTMLElement;
     const statusText = document.getElementById('statusText') as HTMLElement;
-    const statusAlert = document.getElementById('statusAlert') as HTMLElement;
+    const statusIndicator = document.getElementById('statusIndicator') as HTMLElement;
     const connectionStatus = document.getElementById('connectionStatus') as HTMLElement;
+    const connectionIndicator = document.getElementById('connectionIndicator') as HTMLElement;
     const connectionDetails = document.getElementById('connectionDetails') as HTMLElement;
 
     // Store references
     this.elements = {
       consentToggle,
       captureBtn,
+      captureBtnText,
       muteToggle,
       bitrateSlider,
       bitrateValue,
       statusText,
-      statusAlert,
+      statusIndicator,
       connectionStatus,
+      connectionIndicator,
       connectionDetails
     };
   }
 
   private setupEventListeners() {
     // Consent toggle
-    this.elements.consentToggle.addEventListener('change', (e) => {
-      this.consentGiven = (e.target as HTMLInputElement).checked;
+    this.elements.consentToggle.addEventListener('click', () => {
+      this.consentGiven = !this.consentGiven;
+      this.elements.consentToggle.classList.toggle('active', this.consentGiven);
       this.updateCaptureButton();
     });
 
@@ -55,8 +60,9 @@ class MessengerAIAssistant {
     });
 
     // Mute toggle
-    this.elements.muteToggle.addEventListener('change', (e) => {
-      this.isMuted = (e.target as HTMLInputElement).checked;
+    this.elements.muteToggle.addEventListener('click', () => {
+      this.isMuted = !this.isMuted;
+      this.elements.muteToggle.classList.toggle('active', this.isMuted);
     });
 
     // Bitrate slider
@@ -84,9 +90,14 @@ class MessengerAIAssistant {
   private updateConnectionStatus(status: string, details: string) {
     this.elements.connectionStatus.textContent = status;
     this.elements.connectionDetails.textContent = details;
-    this.elements.connectionStatus.className = status === 'Connected' 
-      ? 'badge badge-success' 
-      : 'badge badge-error';
+    
+    // Update connection indicator
+    this.elements.connectionIndicator.className = 'status-indicator';
+    if (status === 'Connected') {
+      this.elements.connectionIndicator.classList.add('status-connected');
+    } else {
+      this.elements.connectionIndicator.classList.add('status-disconnected');
+    }
   }
 
   private updateCaptureButton() {
@@ -94,22 +105,15 @@ class MessengerAIAssistant {
     this.elements.captureBtn.disabled = !canCapture;
     
     if (this.isRecording) {
-      this.elements.captureBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-        </svg>
-        Stop Capture
-      `;
-      this.elements.captureBtn.className = 'btn btn-error btn-lg w-full';
+      this.elements.captureBtnText.textContent = 'Stop Capture';
+      this.elements.captureBtn.className = 'modern-button w-full py-4 px-6 rounded-xl text-white font-semibold text-lg mb-6 flex items-center justify-center space-x-3';
+      this.elements.captureBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
     } else {
-      this.elements.captureBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-        Start Capture
-      `;
-      this.elements.captureBtn.className = 'btn btn-primary btn-lg w-full';
+      this.elements.captureBtnText.textContent = 'Start Capture';
+      this.elements.captureBtn.className = 'modern-button w-full py-4 px-6 rounded-xl text-white font-semibold text-lg mb-6 flex items-center justify-center space-x-3';
+      this.elements.captureBtn.style.background = canCapture 
+        ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        : '#9ca3af';
     }
   }
 
@@ -175,15 +179,26 @@ class MessengerAIAssistant {
 
   private updateStatus(type: 'info' | 'success' | 'error', message: string) {
     this.elements.statusText.textContent = message;
-    this.elements.statusAlert.className = `alert alert-${type}`;
+    
+    // Update status indicator
+    this.elements.statusIndicator.className = 'status-indicator';
+    if (type === 'success') {
+      this.elements.statusIndicator.classList.add('status-connected');
+    } else if (type === 'error') {
+      this.elements.statusIndicator.classList.add('status-disconnected');
+    } else if (this.isRecording) {
+      this.elements.statusIndicator.classList.add('status-recording');
+    } else {
+      this.elements.statusIndicator.classList.add('status-disconnected');
+    }
   }
 
   private addActivity(message: string) {
     const activityList = document.getElementById('activityList');
     const timestamp = new Date().toLocaleTimeString();
     const activityItem = document.createElement('div');
-    activityItem.className = 'text-sm';
-    activityItem.innerHTML = `<span class="opacity-50">${timestamp}</span> ${message}`;
+    activityItem.className = 'activity-item';
+    activityItem.innerHTML = `<span class="text-gray-500 text-xs">${timestamp}</span> ${message}`;
     activityList.insertBefore(activityItem, activityList.firstChild);
     
     // Keep only last 5 activities
@@ -193,14 +208,16 @@ class MessengerAIAssistant {
   }
 
   private elements: {
-    consentToggle: HTMLInputElement;
+    consentToggle: HTMLElement;
     captureBtn: HTMLButtonElement;
-    muteToggle: HTMLInputElement;
+    captureBtnText: HTMLElement;
+    muteToggle: HTMLElement;
     bitrateSlider: HTMLInputElement;
     bitrateValue: HTMLElement;
     statusText: HTMLElement;
-    statusAlert: HTMLElement;
+    statusIndicator: HTMLElement;
     connectionStatus: HTMLElement;
+    connectionIndicator: HTMLElement;
     connectionDetails: HTMLElement;
   };
 }
