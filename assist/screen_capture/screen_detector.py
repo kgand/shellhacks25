@@ -227,18 +227,6 @@ class ScreenCapture:
         self.capture_thread = None
         self.selected_window = None
         
-        # Error handling and recovery
-        self.error_count = 0
-        self.max_errors = 10
-        self.last_error_time = 0
-        self.connection_retries = 0
-        self.max_retries = 3
-        
-        # Performance monitoring
-        self.frame_count = 0
-        self.audio_chunk_count = 0
-        self.start_time = None
-        
     async def initialize(self):
         """Initialize the capture system"""
         logger.info("Initializing screen capture system...")
@@ -256,7 +244,7 @@ class ScreenCapture:
         return True
     
     async def start_capture(self, selected_window=None):
-        """Start capturing screen and audio with robust error handling"""
+        """Start capturing screen and audio"""
         if self.is_capturing:
             logger.warning("Capture already in progress")
             return False
@@ -267,100 +255,46 @@ class ScreenCapture:
         elif self.detector.selected_window:
             self.selected_window = self.detector.selected_window
         else:
-            logger.error("No window selected for capture")
-            return False
-        
-        # Reset error tracking
-        self.error_count = 0
-        self.connection_retries = 0
-        self.start_time = time.time()
-        self.frame_count = 0
-        self.audio_chunk_count = 0
+            raise ValueError("No window selected for capture")
             
         try:
-            # Start audio capture with error handling
-            try:
-                self.audio_capture.start_recording()
-                logger.info("Audio capture started")
-            except Exception as e:
-                logger.warning(f"Audio capture failed to start: {e}")
-                # Continue without audio if it fails
+            # Connect to backend
+            await self._connect_to_backend()
             
-            # Start capture thread (WebSocket connection will be established in the thread)
+            # Start audio capture
+            self.audio_capture.start_recording()
+            
+            # Start capture thread
             self.is_capturing = True
             self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.capture_thread.start()
             
-            logger.info(f"Screen capture started for window: {self.selected_window.title}")
+            logger.info("Screen capture started")
             return True
             
         except Exception as e:
             logger.error(f"Failed to start capture: {e}")
-            await self._cleanup_resources()
             return False
     
     async def stop_capture(self):
-        """Stop capturing with proper cleanup"""
+        """Stop capturing"""
         if not self.is_capturing:
-            logger.info("Capture not running")
             return
             
-        logger.info("Stopping screen capture...")
         self.is_capturing = False
         
-        try:
-            # Stop audio capture
-            try:
-                self.audio_capture.stop_recording()
-                logger.info("Audio capture stopped")
-            except Exception as e:
-                logger.warning(f"Error stopping audio capture: {e}")
+        # Stop audio capture
+        self.audio_capture.stop_recording()
+        
+        # Wait for capture thread to finish
+        if self.capture_thread:
+            self.capture_thread.join()
             
-            # Wait for capture thread to finish with timeout
-            if self.capture_thread and self.capture_thread.is_alive():
-                self.capture_thread.join(timeout=5.0)
-                if self.capture_thread.is_alive():
-                    logger.warning("Capture thread did not stop gracefully")
+        # Close WebSocket connection
+        if self.websocket:
+            await self.websocket.close()
             
-            # Close WebSocket connection
-            if self.websocket and not self.websocket.closed:
-                try:
-                    await self.websocket.close()
-                    logger.info("WebSocket connection closed")
-                except Exception as e:
-                    logger.warning(f"Error closing WebSocket: {e}")
-            
-            # Log performance statistics
-            if self.start_time:
-                duration = time.time() - self.start_time
-                fps = self.frame_count / duration if duration > 0 else 0
-                logger.info(f"Capture session ended - Duration: {duration:.1f}s, Frames: {self.frame_count}, FPS: {fps:.1f}")
-            
-        except Exception as e:
-            logger.error(f"Error during capture stop: {e}")
-        finally:
-            await self._cleanup_resources()
-            logger.info("Screen capture stopped")
-    
-    async def _cleanup_resources(self):
-        """Clean up all resources"""
-        try:
-            # Reset state
-            self.is_capturing = False
-            self.websocket = None
-            self.capture_thread = None
-            self.error_count = 0
-            self.connection_retries = 0
-            
-            # Clean up audio
-            if hasattr(self.audio_capture, 'stream') and self.audio_capture.stream:
-                try:
-                    self.audio_capture.stop_recording()
-                except:
-                    pass
-            
-        except Exception as e:
-            logger.error(f"Error during resource cleanup: {e}")
+        logger.info("Screen capture stopped")
     
     async def _connect_to_backend(self):
         """Connect to the FastAPI backend"""
@@ -380,134 +314,55 @@ class ScreenCapture:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Performance optimization: adaptive capture frequency
-        frame_interval = 0.33  # Capture every 333ms (3 FPS) - reduced for better performance
-        audio_interval = 0.2   # Audio every 200ms - reduced frequency
+        # Performance optimization: reduce capture frequency
+        frame_interval = 0.2  # Capture every 200ms (5 FPS)
+        audio_interval = 0.1  # Audio every 100ms
         last_frame_time = 0
         last_audio_time = 0
-        
-        # Performance monitoring
-        frame_times = []
-        max_frame_times = 10  # Keep last 10 frame times for adaptive timing
-        
-        # Establish WebSocket connection in this thread
-        try:
-            connection_success = False
-            for attempt in range(self.max_retries):
-                try:
-                    self.websocket = loop.run_until_complete(websockets.connect(self.backend_url))
-                    connection_success = True
-                    logger.info("Connected to backend from capture thread")
-                    break
-                except Exception as e:
-                    self.connection_retries += 1
-                    logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
-                    if attempt < self.max_retries - 1:
-                        loop.run_until_complete(asyncio.sleep(2 ** attempt))  # Exponential backoff
-            
-            if not connection_success:
-                logger.error("Failed to connect to backend after all retries")
-                self.is_capturing = False
-                return
-                
-        except Exception as e:
-            logger.error(f"Failed to establish WebSocket connection: {e}")
-            self.is_capturing = False
-            return
         
         try:
             while self.is_capturing:
                 current_time = time.time()
-                loop_start = time.time()
                 
                 try:
-                    # Capture screen frame (optimized frequency with adaptive timing)
+                    # Capture screen frame (optimized frequency)
                     if self.selected_window and (current_time - last_frame_time) >= frame_interval:
-                        frame_start = time.time()
                         frame = self._capture_screen_frame()
-                        frame_capture_time = time.time() - frame_start
-                        
                         if frame is not None:
                             # Send frame to backend asynchronously
-                            send_start = time.time()
-                            try:
-                                loop.run_until_complete(self._send_frame(frame, frame_count))
-                                send_time = time.time() - send_start
-                                
-                                frame_count += 1
-                                last_frame_time = current_time
-                                
-                                # Track performance for adaptive timing
-                                total_frame_time = frame_capture_time + send_time
-                                frame_times.append(total_frame_time)
-                                if len(frame_times) > max_frame_times:
-                                    frame_times.pop(0)
-                                
-                                # Adaptive frame interval based on performance
-                                if len(frame_times) >= 3:
-                                    avg_frame_time = sum(frame_times) / len(frame_times)
-                                    if avg_frame_time > 0.5:  # If frames take too long
-                                        frame_interval = min(0.5, frame_interval * 1.1)  # Slow down
-                                    elif avg_frame_time < 0.2:  # If frames are fast
-                                        frame_interval = max(0.2, frame_interval * 0.95)  # Speed up
-                                        
-                            except Exception as e:
-                                logger.error(f"Error sending frame {frame_count}: {e}")
-                                # Check if we should stop due to too many errors
-                                if self.error_count >= self.max_errors:
-                                    logger.error("Too many errors, stopping capture")
-                                    self.is_capturing = False
-                                    break
+                            loop.run_until_complete(self._send_frame(frame, frame_count))
+                            frame_count += 1
+                            last_frame_time = current_time
                     
                     # Capture audio data (optimized frequency)
                     if (current_time - last_audio_time) >= audio_interval:
-                        try:
-                            audio_data = self.audio_capture.get_audio_data()
-                            if audio_data:
-                                loop.run_until_complete(self._send_audio(audio_data))
-                                audio_chunk_count += 1
-                                last_audio_time = current_time
-                        except Exception as e:
-                            logger.warning(f"Error capturing audio: {e}")
+                        audio_data = self.audio_capture.get_audio_data()
+                        if audio_data:
+                            loop.run_until_complete(self._send_audio(audio_data))
+                            audio_chunk_count += 1
+                            last_audio_time = current_time
                     
-                    # Adaptive sleep based on loop performance
-                    loop_time = time.time() - loop_start
-                    if loop_time < 0.1:  # If loop is fast, sleep longer
-                        time.sleep(0.05)
-                    else:  # If loop is slow, sleep less
-                        time.sleep(0.02)
+                    # Adaptive sleep based on performance
+                    time.sleep(0.05)  # Reduced sleep for better responsiveness
                     
                 except Exception as e:
-                    self.error_count += 1
-                    self.last_error_time = current_time
-                    logger.error(f"Error in capture loop (error #{self.error_count}): {e}")
-                    
-                    # If too many errors in a short time, stop
-                    if self.error_count >= self.max_errors:
-                        logger.error("Too many consecutive errors, stopping capture")
-                        self.is_capturing = False
-                        break
-                    
+                    logger.error(f"Error in capture loop: {e}")
                     time.sleep(0.5)  # Longer sleep on error
-                    
-        except Exception as e:
-            logger.error(f"Fatal error in capture loop: {e}")
         finally:
             loop.close()
-            logger.info("Capture loop ended")
     
     def _capture_screen_frame(self) -> Optional[np.ndarray]:
-        """Optimized screen frame capture with better performance"""
+        """Optimized screen frame capture"""
         try:
             if not self.selected_window:
                 return None
                 
-            # Capture screen region with bounds checking
+            # Capture screen region
             monitor = {
-                "top": max(0, self.selected_window.y),
-                "left": max(0, self.selected_window.x),
-                "width": max(100, min(self.selected_window.width, 1920)),  # Reasonable limits
-                "height": max(100, min(self.selected_window.height, 1080))
+                "top": self.selected_window.y,
+                "left": self.selected_window.x,
+                "width": self.selected_window.width,
+                "height": self.selected_window.height
             }
             
             # Use a new MSS instance for each capture to avoid threading issues
@@ -515,10 +370,10 @@ class ScreenCapture:
                 screenshot = mss_instance.grab(monitor)
                 frame = np.array(screenshot)
             
-            # Optimize frame processing with better memory management
+            # Optimize frame processing
             if len(frame.shape) == 3 and frame.shape[2] == 4:
-                # Convert BGRA to BGR more efficiently - remove alpha channel
-                frame = frame[:, :, :3]
+                # Convert BGRA to BGR more efficiently
+                frame = frame[:, :, :3]  # Remove alpha channel
             elif len(frame.shape) == 3 and frame.shape[2] == 3:
                 # Already BGR, no conversion needed
                 pass
@@ -526,26 +381,13 @@ class ScreenCapture:
                 # Handle other formats
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
             
-            # Smart resizing for better performance
+            # Optional: Resize frame for better performance
             height, width = frame.shape[:2]
-            max_width = 1280
-            max_height = 720
-            
-            if width > max_width or height > max_height:
-                # Calculate scale to fit within limits while maintaining aspect ratio
-                scale_w = max_width / width
-                scale_h = max_height / height
-                scale = min(scale_w, scale_h)
-                
+            if width > 1280:  # Limit width for performance
+                scale = 1280 / width
                 new_width = int(width * scale)
                 new_height = int(height * scale)
-                
-                # Use INTER_AREA for downscaling (better quality and performance)
-                frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            
-            # Additional optimization: convert to contiguous array for better memory access
-            if not frame.flags['C_CONTIGUOUS']:
-                frame = np.ascontiguousarray(frame)
+                frame = cv2.resize(frame, (new_width, new_height))
             
             return frame
             
@@ -554,78 +396,28 @@ class ScreenCapture:
             return None
     
     async def _send_frame(self, frame: np.ndarray, frame_count: int):
-        """Optimized frame sending to backend with better compression"""
+        """Optimized frame sending to backend"""
         try:
-            # Validate WebSocket connection
-            if not self.websocket:
-                logger.error("WebSocket connection is None")
-                return
+            if self.websocket and not self.websocket.closed:
+                # Optimize JPEG encoding for better performance
+                encode_params = [cv2.IMWRITE_JPEG_QUALITY, 70]  # Reduced quality for speed
+                _, buffer = cv2.imencode('.jpg', frame, encode_params)
+                frame_data = buffer.tobytes()
                 
-            if self.websocket.closed:
-                logger.error("WebSocket connection is closed")
-                return
-            
-            # Adaptive JPEG quality based on frame size
-            height, width = frame.shape[:2]
-            total_pixels = height * width
-            
-            # Adjust quality based on frame size
-            if total_pixels > 800000:  # Large frames
-                quality = 60
-            elif total_pixels > 400000:  # Medium frames
-                quality = 70
-            else:  # Small frames
-                quality = 80
-            
-            # Optimize JPEG encoding for better performance
-            encode_params = [
-                cv2.IMWRITE_JPEG_QUALITY, quality,
-                cv2.IMWRITE_JPEG_OPTIMIZE, 1,  # Enable optimization
-                cv2.IMWRITE_JPEG_PROGRESSIVE, 1  # Progressive JPEG for better compression
-            ]
-            
-            _, buffer = cv2.imencode('.jpg', frame, encode_params)
-            frame_data = buffer.tobytes()
-            
-            # Dynamic size limit based on frame count (allow larger frames occasionally)
-            max_size = 300000 if frame_count % 5 == 0 else 200000  # 300KB every 5th frame, 200KB otherwise
-            
-            if len(frame_data) < max_size:
-                message = {
-                    "type": "video_frame",
-                    "frame_count": frame_count,
-                    "timestamp": datetime.now().isoformat(),
-                    "data": frame_data.hex(),
-                    "size": len(frame_data),
-                    "quality": quality,
-                    "dimensions": f"{width}x{height}"
-                }
-                
-                await self.websocket.send(json.dumps(message))
-                
-                # Reduced logging frequency with more useful info
-                if frame_count % 20 == 0:
-                    logger.info(f"Sent frame {frame_count} ({len(frame_data)} bytes, {width}x{height}, quality={quality})")
-            else:
-                # Try with lower quality if frame is too large
-                if quality > 40:
-                    encode_params[1] = max(40, quality - 20)  # Reduce quality
-                    _, buffer = cv2.imencode('.jpg', frame, encode_params)
-                    frame_data = buffer.tobytes()
+                # Only send if frame is not too large
+                if len(frame_data) < 500000:  # 500KB limit
+                    message = {
+                        "type": "video_frame",
+                        "frame_count": frame_count,
+                        "timestamp": datetime.now().isoformat(),
+                        "data": frame_data.hex(),
+                        "size": len(frame_data)
+                    }
                     
-                    if len(frame_data) < max_size:
-                        message = {
-                            "type": "video_frame",
-                            "frame_count": frame_count,
-                            "timestamp": datetime.now().isoformat(),
-                            "data": frame_data.hex(),
-                            "size": len(frame_data),
-                            "quality": encode_params[1],
-                            "dimensions": f"{width}x{height}"
-                        }
-                        await self.websocket.send(json.dumps(message))
-                    else:
-                        logger.warning(f"Frame {frame_count} still too large after quality reduction ({len(frame_data)} bytes), skipping")
+                    await self.websocket.send(json.dumps(message))
+                    # Reduced logging frequency
+                    if frame_count % 10 == 0:
+                        logger.info(f"Sent frame {frame_count} ({len(frame_data)} bytes)")
                 else:
                     logger.warning(f"Frame {frame_count} too large ({len(frame_data)} bytes), skipping")
                 
@@ -635,23 +427,15 @@ class ScreenCapture:
     async def _send_audio(self, audio_data: bytes):
         """Send audio data to backend"""
         try:
-            # Validate WebSocket connection
-            if not self.websocket:
-                logger.error("WebSocket connection is None for audio")
-                return
+            if self.websocket and not self.websocket.closed:
+                # Create message
+                message = {
+                    "type": "audio_chunk",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": audio_data.hex()  # Convert to hex string for JSON
+                }
                 
-            if self.websocket.closed:
-                logger.error("WebSocket connection is closed for audio")
-                return
-            
-            # Create message
-            message = {
-                "type": "audio_chunk",
-                "timestamp": datetime.now().isoformat(),
-                "data": audio_data.hex()  # Convert to hex string for JSON
-            }
-            
-            await self.websocket.send(json.dumps(message))
+                await self.websocket.send(json.dumps(message))
                 
         except Exception as e:
             logger.error(f"Error sending audio: {e}")
