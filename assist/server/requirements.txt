@@ -3,3 +3,6 @@ uvicorn[standard]==0.24.0
 python-dotenv==1.0.0
 pydantic==2.5.0
 requests==2.31.0
+opencv-python==4.11.0.86
+numpy==2.3.0
+python-multipart==0.0.20

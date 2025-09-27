@@ -3,7 +3,7 @@ FastAPI backend for Messenger AI Assistant
 File-based screen capture with AI processing pipeline
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 import os
@@ -14,6 +14,15 @@ from datetime import datetime
 import json
 import shutil
 from pathlib import Path
+import cv2
+import numpy as np
+import base64
+
+# Import Ollama components
+from ollama_client import OllamaClient
+from realtime_analyzer import RealtimeAnalyzer
+from audio_processor import AudioProcessor
+from summarization_service import SummarizationService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +38,12 @@ class MessengerAIServiceState:
         self.is_initialized = False
         self.upload_dir = "uploads"
         self.output_dir = "processed"
+        
+        # Ollama components
+        self.ollama_client = OllamaClient()
+        self.realtime_analyzer = RealtimeAnalyzer()
+        self.audio_processor = AudioProcessor()
+        self.summarization_service = SummarizationService()
         
         # Create directories
         os.makedirs(self.upload_dir, exist_ok=True)
@@ -82,7 +97,25 @@ async def root():
             "files": "/files",
             "upload": "/upload/{session_id}",
             "process": "/process/{session_id}",
-            "stats": "/stats"
+            "stats": "/stats",
+            "ollama": {
+                "analyze_frame": "/analyze-frame",
+                "process_text": "/process-text",
+                "summarize": "/summarize",
+                "start_analysis": "/start-analysis/{session_id}",
+                "stop_analysis": "/stop-analysis",
+                "analysis_status": "/analysis-status"
+            },
+            "audio": {
+                "process_audio": "/process-audio",
+                "transcribe_file": "/transcribe-file",
+                "audio_status": "/audio-status"
+            },
+            "summarization": {
+                "generate_summary": "/generate-summary/{session_id}",
+                "comprehensive_summary": "/comprehensive-summary",
+                "summary_status": "/summary-status"
+            }
         },
         "documentation": "Visit /docs for API documentation"
     }
@@ -502,6 +535,313 @@ async def delete_file(session_id: str, filename: str):
         "filename": filename,
         "session_id": session_id
     }
+
+# Ollama AI Analysis Endpoints
+@app.post("/analyze-frame")
+async def analyze_frame(
+    image: UploadFile = File(...),
+    system_prompt: str = Form(None),
+    user_query: str = Form(None)
+):
+    """Analyze a single frame using Ollama VLM"""
+    try:
+        if not image.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Invalid file type. Please upload an image.")
+        
+        # Read and process image
+        contents = await image.read()
+        img_np = np.frombuffer(contents, np.uint8)
+        frame = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            raise HTTPException(status_code=400, detail="Could not decode image.")
+        
+        # Analyze frame
+        analysis = state.ollama_client.analyze_frame(
+            frame, 
+            system_prompt=system_prompt,
+            user_query=user_query
+        )
+        
+        return {
+            "status": "analyzed",
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error analyzing frame: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/process-text")
+async def process_text(
+    prompt: str = Form(...),
+    system_prompt: str = Form(None)
+):
+    """Process text using Ollama LLM"""
+    try:
+        result = state.ollama_client.process_text(
+            prompt=prompt,
+            system_prompt=system_prompt
+        )
+        
+        return {
+            "status": "processed",
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing text: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/summarize")
+async def summarize_content(
+    content: str = Form(...),
+    system_prompt: str = Form(None)
+):
+    """Summarize content using Ollama LLM"""
+    try:
+        summary = state.ollama_client.summarize_content(
+            content=content,
+            system_prompt=system_prompt
+        )
+        
+        return {
+            "status": "summarized",
+            "summary": summary,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error summarizing content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/start-analysis/{session_id}")
+async def start_realtime_analysis(session_id: str):
+    """Start real-time analysis for a session"""
+    try:
+        if session_id not in state.capture_sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Check if Ollama is available
+        if not state.ollama_client.is_available():
+            raise HTTPException(status_code=503, detail="Ollama is not available")
+        
+        # Start analysis
+        success = state.realtime_analyzer.start_analysis(session_id)
+        
+        if success:
+            return {
+                "status": "started",
+                "session_id": session_id,
+                "message": "Real-time analysis started"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to start analysis")
+            
+    except Exception as e:
+        logger.error(f"Error starting analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/stop-analysis")
+async def stop_realtime_analysis():
+    """Stop real-time analysis"""
+    try:
+        state.realtime_analyzer.stop_analysis()
+        
+        return {
+            "status": "stopped",
+            "message": "Real-time analysis stopped"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error stopping analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analysis-status")
+async def get_analysis_status():
+    """Get current analysis status"""
+    try:
+        results = state.realtime_analyzer.get_analysis_results()
+        
+        return {
+            "status": "success",
+            "analysis": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting analysis status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ollama-status")
+async def get_ollama_status():
+    """Get Ollama service status"""
+    try:
+        is_available = state.ollama_client.is_available()
+        models = state.ollama_client.get_models() if is_available else {}
+        
+        return {
+            "status": "available" if is_available else "unavailable",
+            "ollama_available": is_available,
+            "models": models
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking Ollama status: {e}")
+        return {
+            "status": "error",
+            "ollama_available": False,
+            "error": str(e)
+        }
+
+# Audio Processing Endpoints
+@app.post("/process-audio")
+async def process_audio_file(audio_file: UploadFile = File(...)):
+    """Process an audio file for transcription"""
+    try:
+        if not audio_file.content_type.startswith("audio/"):
+            raise HTTPException(status_code=400, detail="Invalid file type. Please upload an audio file.")
+        
+        # Save uploaded file temporarily
+        temp_path = f"temp_audio_{int(time.time())}.wav"
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(audio_file.file, buffer)
+        
+        try:
+            # Process audio file
+            result = state.audio_processor.process_audio_file(temp_path)
+            
+            return {
+                "status": "processed",
+                "filename": audio_file.filename,
+                "result": result,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        
+    except Exception as e:
+        logger.error(f"Error processing audio file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/transcribe-file")
+async def transcribe_audio_file(file_path: str = Form(...)):
+    """Transcribe an audio file by path"""
+    try:
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        # Process audio file
+        result = state.audio_processor.process_audio_file(file_path)
+        
+        return {
+            "status": "transcribed",
+            "file_path": file_path,
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error transcribing audio file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/audio-status")
+async def get_audio_status():
+    """Get audio processing status"""
+    try:
+        cache = state.audio_processor.get_transcription_cache()
+        supported_formats = state.audio_processor.get_supported_formats()
+        
+        return {
+            "status": "available",
+            "supported_formats": supported_formats,
+            "cached_transcriptions": len(cache),
+            "processor_ready": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting audio status: {e}")
+        return {
+            "status": "error",
+            "processor_ready": False,
+            "error": str(e)
+        }
+
+# Summarization Endpoints
+@app.post("/generate-summary/{session_id}")
+async def generate_session_summary(session_id: str):
+    """Generate comprehensive summary for a session"""
+    try:
+        if session_id not in state.capture_sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Get current analysis results
+        analysis_results = state.realtime_analyzer.get_analysis_results()
+        
+        # Generate session summary
+        summary_result = state.summarization_service.generate_session_summary(
+            session_id=session_id,
+            analysis_results=analysis_results
+        )
+        
+        return {
+            "status": "generated",
+            "session_id": session_id,
+            "summary": summary_result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating session summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/comprehensive-summary")
+async def get_comprehensive_summary():
+    """Get current comprehensive summary"""
+    try:
+        analysis_results = state.realtime_analyzer.get_analysis_results()
+        comprehensive_summary = analysis_results.get("comprehensive_summary")
+        
+        if comprehensive_summary:
+            return {
+                "status": "available",
+                "summary": comprehensive_summary,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "not_available",
+                "message": "No comprehensive summary available yet",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"Error getting comprehensive summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/summary-status")
+async def get_summary_status():
+    """Get summarization service status"""
+    try:
+        stats = state.summarization_service.get_summary_statistics()
+        
+        return {
+            "status": "available",
+            "statistics": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting summary status: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 if __name__ == "__main__":
     import uvicorn

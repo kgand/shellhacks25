@@ -15,6 +15,8 @@ import numpy as np
 from pathlib import Path
 
 from ollama_client import OllamaClient
+from audio_processor import AudioProcessor
+from summarization_service import SummarizationService
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +25,16 @@ class RealtimeAnalyzer:
     
     def __init__(self, output_dir: str = "processed"):
         self.ollama_client = OllamaClient()
+        self.audio_processor = AudioProcessor()
+        self.summarization_service = SummarizationService()
         self.output_dir = output_dir
         self.is_analyzing = False
         self.analysis_thread = None
         self.frame_analysis_results = []
         self.audio_transcription = ""
+        self.audio_analysis_results = []
         self.summary = ""
+        self.comprehensive_summary = None
         
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
@@ -64,7 +70,9 @@ class RealtimeAnalyzer:
             self.is_analyzing = True
             self.frame_analysis_results = []
             self.audio_transcription = ""
+            self.audio_analysis_results = []
             self.summary = ""
+            self.comprehensive_summary = None
             
             # Start analysis thread
             self.analysis_thread = threading.Thread(
@@ -131,6 +139,10 @@ class RealtimeAnalyzer:
             # Generate summary if we have enough data
             if len(self.frame_analysis_results) > 0:
                 self._generate_summary()
+            
+            # Generate comprehensive summary periodically
+            if self.summarization_service.should_update_summary():
+                self._generate_comprehensive_summary()
                 
         except Exception as e:
             logger.error(f"Error analyzing captured content: {e}")
@@ -215,10 +227,24 @@ class RealtimeAnalyzer:
             latest_audio = max(audio_files, key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)))
             audio_path = os.path.join(capture_dir, latest_audio)
             
-            # For now, create a placeholder transcription
-            # In a real implementation, you would use a speech-to-text service
-            if not self.audio_transcription:
-                self.audio_transcription = f"[Audio transcription placeholder for {latest_audio}]"
+            # Check if we've already processed this file
+            if any(result.get("file_path") == audio_path for result in self.audio_analysis_results):
+                return
+            
+            # Process audio file
+            audio_result = self.audio_processor.process_audio_file(audio_path)
+            
+            if audio_result["status"] == "success":
+                self.audio_analysis_results.append(audio_result)
+                
+                # Update combined transcription
+                if audio_result.get("transcription"):
+                    if self.audio_transcription:
+                        self.audio_transcription += f"\n\n--- {latest_audio} ---\n"
+                    else:
+                        self.audio_transcription = f"--- {latest_audio} ---\n"
+                    self.audio_transcription += audio_result["transcription"]
+                
                 logger.info(f"Processed audio file: {latest_audio}")
                 
         except Exception as e:
@@ -260,6 +286,31 @@ class RealtimeAnalyzer:
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
     
+    def _generate_comprehensive_summary(self):
+        """Generate comprehensive summary using the summarization service"""
+        try:
+            if not self.frame_analysis_results and not self.audio_analysis_results:
+                return
+            
+            # Generate comprehensive summary
+            self.comprehensive_summary = self.summarization_service.generate_comprehensive_summary(
+                frame_analyses=self.frame_analysis_results,
+                audio_transcriptions=self.audio_analysis_results,
+                session_context={"session_id": getattr(self, 'session_id', None)}
+            )
+            
+            # Update timestamp
+            self.summarization_service.update_summary_timestamp()
+            
+            # Call callback if set
+            if self.on_summary_updated:
+                self.on_summary_updated(self.comprehensive_summary)
+            
+            logger.info("Generated comprehensive summary")
+            
+        except Exception as e:
+            logger.error(f"Error generating comprehensive summary: {e}")
+    
     def get_analysis_results(self) -> Dict[str, Any]:
         """Get current analysis results"""
         return {
@@ -267,8 +318,10 @@ class RealtimeAnalyzer:
             "is_analyzing": self.is_analyzing,
             "frame_analyses": len(self.frame_analysis_results),
             "latest_analysis": self.frame_analysis_results[-1] if self.frame_analysis_results else None,
+            "audio_analyses": len(self.audio_analysis_results),
             "audio_transcription": self.audio_transcription,
             "summary": self.summary,
+            "comprehensive_summary": self.comprehensive_summary,
             "timestamp": datetime.now().isoformat()
         }
     
@@ -277,6 +330,7 @@ class RealtimeAnalyzer:
         try:
             results = self.get_analysis_results()
             results["frame_analysis_results"] = self.frame_analysis_results
+            results["audio_analysis_results"] = self.audio_analysis_results
             
             # Save to session directory
             session_dir = os.path.join(self.output_dir, session_id)

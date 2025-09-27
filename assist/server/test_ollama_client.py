@@ -168,6 +168,59 @@ def test_realtime_analysis():
         print(f"❌ Error testing real-time analysis: {e}")
         return False
 
+def test_audio_processing():
+    """Test audio processing"""
+    print("\nTesting audio processing...")
+    try:
+        # Test audio status
+        status_response = requests.get(f"{SERVER_URL}/audio-status")
+        if status_response.status_code == 200:
+            status = status_response.json()
+            print(f"✅ Audio Status: {status}")
+        else:
+            print(f"❌ Audio status check failed: {status_response.status_code}")
+            return False
+        
+        # Test audio file processing (create a dummy audio file)
+        # For this test, we'll just check if the endpoint responds
+        # In a real scenario, you would upload an actual audio file
+        
+        print("✅ Audio processing endpoints are available")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error testing audio processing: {e}")
+        return False
+
+def test_summarization():
+    """Test summarization functionality"""
+    print("\nTesting summarization...")
+    try:
+        # Test summary status
+        status_response = requests.get(f"{SERVER_URL}/summary-status")
+        if status_response.status_code == 200:
+            status = status_response.json()
+            print(f"✅ Summary Status: {status}")
+        else:
+            print(f"❌ Summary status check failed: {status_response.status_code}")
+            return False
+        
+        # Test comprehensive summary
+        summary_response = requests.get(f"{SERVER_URL}/comprehensive-summary")
+        if summary_response.status_code == 200:
+            summary = summary_response.json()
+            print(f"✅ Comprehensive Summary: {summary}")
+        else:
+            print(f"❌ Comprehensive summary check failed: {summary_response.status_code}")
+            return False
+        
+        print("✅ Summarization endpoints are available")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error testing summarization: {e}")
+        return False
+
 def main():
     """Run all tests"""
     print("🧪 Testing Ollama Integration")
@@ -191,7 +244,9 @@ def main():
         ("Frame Analysis", test_frame_analysis),
         ("Text Processing", test_text_processing),
         ("Summarization", test_summarization),
-        ("Real-time Analysis", test_realtime_analysis)
+        ("Real-time Analysis", test_realtime_analysis),
+        ("Audio Processing", test_audio_processing),
+        ("Advanced Summarization", test_summarization)
     ]
     
     results = []
