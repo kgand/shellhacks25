@@ -7,7 +7,7 @@ import os
 import time
 import threading
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from datetime import datetime
 import json
 import cv2
