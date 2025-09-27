@@ -9,8 +9,8 @@ This document describes the comprehensive Ollama integration that has been imple
 ### ✅ Completed Features
 
 1. **Ollama Client Integration** (`assist/server/ollama_client.py`)
-   - VLM model support (qwen2.5vl:7b) for frame analysis
-   - LLM model support (llama3:8b) for text processing
+   - VLM model support (gemma3:4b) for frame analysis
+   - LLM model support (qwen3:8b) for text processing
    - Real-time frame analysis with custom prompts
    - Audio transcription support
    - Content summarization capabilities
@@ -100,8 +100,8 @@ Messenger AI Assistant with Ollama Integration
    ollama serve
    
    # Pull required models
-   ollama pull qwen2.5vl:7b
-   ollama pull llama3:8b
+   ollama pull gemma3:4b
+   ollama pull qwen3:8b
    ```
 
 2. **Install Dependencies**
@@ -163,8 +163,8 @@ Messenger AI Assistant with Ollama Integration
 ## 🔧 Configuration
 
 ### Ollama Models
-- **VLM Model**: `qwen2.5vl:7b` (Vision Language Model)
-- **LLM Model**: `llama3:8b` (Text Language Model)
+- **VLM Model**: `gemma3:4b` (Vision Language Model)
+- **LLM Model**: `qwen3:8b` (Text Language Model)
 - **Host**: `http://localhost:11434`
 
 ### Analysis Settings
@@ -280,6 +280,7 @@ curl http://127.0.0.1:8000/analysis-status
    - Ensure Ollama is running: `ollama serve`
    - Check models are pulled: `ollama list`
    - Verify connection: `curl http://localhost:11434/api/tags`
+   - Pull required models: `ollama pull gemma3:4b && ollama pull qwen3:8b`
 
 2. **Analysis Not Working**
    - Check server is running: `curl http://127.0.0.1:8000/health`
