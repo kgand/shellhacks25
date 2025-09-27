@@ -21,6 +21,9 @@ This document describes the comprehensive Ollama integration that has been imple
    - Automatic analysis every 2 seconds
    - Background processing with threading
    - Session-based analysis management
+   - **NEW: Real-time output streaming and tracking**
+   - **NEW: Live analysis result display**
+   - **NEW: Real-time output callbacks and monitoring**
 
 3. **Audio Processing System** (`assist/server/audio_processor.py`)
    - Multi-format audio support (.wav, .mp3, .m4a)
@@ -43,11 +46,17 @@ This document describes the comprehensive Ollama integration that has been imple
    - Real-time analysis control
    - Comprehensive summary generation
    - Health monitoring and status reporting
+   - **NEW: Real-time output endpoints**
+   - **NEW: Live analysis result streaming**
+   - **NEW: Real-time output management**
 
 6. **Updated GUI Integration** (`assist/screen_capture/gui.py`)
    - AI analysis button and workflow
    - Real-time analysis monitoring
    - Comprehensive summary display
+   - **NEW: Real-time output viewer window**
+   - **NEW: Live analysis result display in GUI**
+   - **NEW: Auto-refresh real-time output monitoring**
    - Background processing status
    - Error handling and user feedback
 
@@ -152,6 +161,14 @@ Messenger AI Assistant with Ollama Integration
 | `/transcribe-file` | POST | Transcribe audio by path |
 | `/audio-status` | GET | Get audio processing status |
 
+### Real-time Output Endpoints (NEW)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/realtime-outputs` | GET | Get recent real-time analysis outputs |
+| `/latest-realtime-output` | GET | Get the latest real-time analysis output |
+| `/clear-realtime-outputs` | POST | Clear all real-time outputs |
+
 ### Summarization Endpoints
 
 | Endpoint | Method | Description |
@@ -247,11 +264,18 @@ assist/
    - System analyzes content using Ollama VLM/LLM
    - View analysis results in GUI log
 
-6. **View Results**
+6. **View Real-time Outputs** (NEW)
+   - Click "View Real-time Output" to open live analysis window
+   - See live frame analysis and audio transcription
+   - Auto-refresh updates every 3 seconds
+   - Monitor real-time AI analysis progress
+
+7. **View Results**
    - Real-time frame analysis
    - Audio transcription
    - Comprehensive summaries
    - Key points and timeline
+   - Live analysis output streaming
 
 ## 🔍 Monitoring and Debugging
 
@@ -265,6 +289,10 @@ curl http://127.0.0.1:8000/ollama-status
 
 # Analysis status
 curl http://127.0.0.1:8000/analysis-status
+
+# Real-time outputs (NEW)
+curl http://127.0.0.1:8000/realtime-outputs
+curl http://127.0.0.1:8000/latest-realtime-output
 ```
 
 ### Log Files
