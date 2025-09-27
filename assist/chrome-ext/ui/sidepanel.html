@@ -4,242 +4,102 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Messenger AI Assistant</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="../styles/tailwind.css">
-  <style>
-    :root {
-      --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-      --error-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-      --warning-gradient: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%);
-    }
-    
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-      min-height: 100vh;
-    }
-    
-    .glass-effect {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .gradient-text {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    .pulse-animation {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    
-    .status-indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 8px;
-    }
-    
-    .status-connected { background: #10b981; }
-    .status-disconnected { background: #ef4444; }
-    .status-recording { background: #f59e0b; animation: pulse 1s infinite; }
-    
-    .modern-card {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    }
-    
-    .modern-button {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border: none;
-      color: white;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    }
-    
-    .modern-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-    }
-    
-    .modern-button:disabled {
-      background: #9ca3af;
-      transform: none;
-      box-shadow: none;
-    }
-    
-    .modern-toggle {
-      width: 44px;
-      height: 24px;
-      background: #e5e7eb;
-      border-radius: 12px;
-      position: relative;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    
-    .modern-toggle.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .modern-toggle::after {
-      content: '';
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      background: white;
-      border-radius: 50%;
-      transition: all 0.3s ease;
-    }
-    
-    .modern-toggle.active::after {
-      transform: translateX(20px);
-    }
-    
-    .quality-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      height: 6px;
-      border-radius: 3px;
-      background: linear-gradient(90deg, #e5e7eb 0%, #667eea 100%);
-      outline: none;
-    }
-    
-    .quality-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    }
-    
-    .activity-item {
-      background: rgba(255, 255, 255, 0.8);
-      border-radius: 8px;
-      padding: 8px 12px;
-      margin-bottom: 4px;
-      font-size: 13px;
-      border-left: 3px solid #667eea;
-    }
-  </style>
 </head>
-<body>
-  <div class="min-h-screen p-4">
+<body class="bg-base-100 min-h-screen">
+  <div class="p-4 max-w-sm mx-auto">
     <!-- Header -->
     <div class="text-center mb-6">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
-        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-3">
+        <svg class="w-6 h-6 text-primary-content" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
         </svg>
       </div>
-      <h1 class="text-2xl font-bold gradient-text mb-2">Messenger AI Assistant</h1>
-      <p class="text-gray-600 text-sm">Intelligent conversation capture and analysis</p>
+      <h1 class="text-xl font-bold text-base-content mb-1">Messenger AI Assistant</h1>
+      <p class="text-sm text-base-content/70">Capture and analyze conversations</p>
     </div>
 
-    <!-- Main Card -->
-    <div class="modern-card rounded-2xl p-6 mb-6">
-      <!-- Status Display -->
-      <div class="flex items-center justify-center mb-6">
-        <div class="status-indicator status-disconnected" id="statusIndicator"></div>
-        <span class="text-sm font-medium text-gray-700 ml-2" id="statusText">Ready to capture</span>
-      </div>
-
-      <!-- Consent Section -->
-      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-6">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center">
-            <svg class="w-5 h-5 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span class="text-sm font-medium text-gray-700">I consent to recording my conversations</span>
-          </div>
-          <div class="modern-toggle" id="consentToggle"></div>
+    <!-- Status Card -->
+    <div class="card bg-base-200 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-center mb-2">
+          <div class="w-2 h-2 bg-error rounded-full mr-2" id="statusIndicator"></div>
+          <span class="text-sm font-medium" id="statusText">Ready to capture</span>
         </div>
       </div>
+    </div>
 
-      <!-- Capture Button -->
-      <button class="modern-button w-full py-4 px-6 rounded-xl text-white font-semibold text-lg mb-6 flex items-center justify-center space-x-3" id="captureBtn" disabled>
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-        </svg>
-        <span id="captureBtnText">Start Capture</span>
-      </button>
-
-      <!-- Settings Section -->
-      <div class="space-y-4">
-        <!-- Mute Toggle -->
-        <div class="flex items-center justify-between py-3">
-          <div class="flex items-center">
-            <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-            </svg>
-            <span class="text-sm font-medium text-gray-700">Mute microphone</span>
-          </div>
-          <div class="modern-toggle" id="muteToggle"></div>
+    <!-- Main Controls -->
+    <div class="card bg-base-200 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <!-- Consent Toggle -->
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer">
+            <span class="label-text text-sm">I consent to recording my conversations</span>
+            <input type="checkbox" class="toggle toggle-primary" id="consentToggle" />
+          </label>
         </div>
 
-        <!-- Audio Quality -->
-        <div class="py-3">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center">
-              <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
-              </svg>
-              <span class="text-sm font-medium text-gray-700">Audio Quality</span>
+        <!-- Capture Button -->
+        <button class="btn btn-primary btn-lg w-full mb-4" id="captureBtn" disabled>
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+          <span id="captureBtnText">Start Capture</span>
+        </button>
+
+        <!-- Settings -->
+        <div class="space-y-3">
+          <!-- Mute Toggle -->
+          <div class="form-control">
+            <label class="label cursor-pointer">
+              <span class="label-text text-sm">Mute microphone</span>
+              <input type="checkbox" class="toggle toggle-secondary" id="muteToggle" />
+            </label>
+          </div>
+
+          <!-- Audio Quality -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text text-sm">Audio Quality</span>
+              <span class="label-text-alt text-sm" id="bitrateValue">128 kbps</span>
+            </label>
+            <input type="range" min="64" max="256" value="128" class="range range-primary range-sm" id="bitrateSlider" />
+            <div class="w-full flex justify-between text-xs px-2 mt-1">
+              <span>Low</span>
+              <span>High</span>
             </div>
-            <span class="text-sm font-semibold text-indigo-600" id="bitrateValue">128 kbps</span>
-          </div>
-          <input type="range" min="64" max="256" value="128" class="quality-slider w-full" id="bitrateSlider" />
-          <div class="flex justify-between text-xs text-gray-500 mt-2">
-            <span>Low</span>
-            <span>High</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Connection Status -->
-    <div class="modern-card rounded-xl p-4 mb-6">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center">
-          <div class="status-indicator status-disconnected" id="connectionIndicator"></div>
-          <span class="text-sm font-medium text-gray-700" id="connectionStatus">Disconnected</span>
+    <div class="card bg-base-200 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <div class="w-2 h-2 bg-error rounded-full mr-2" id="connectionIndicator"></div>
+            <span class="text-sm font-medium" id="connectionStatus">Disconnected</span>
+          </div>
+          <span class="text-xs text-base-content/60" id="connectionDetails">Backend not connected</span>
         </div>
-        <span class="text-xs text-gray-500" id="connectionDetails">Backend not connected</span>
       </div>
     </div>
 
     <!-- Recent Activity -->
-    <div class="modern-card rounded-xl p-4">
-      <div class="flex items-center mb-4">
-        <svg class="w-5 h-5 text-gray-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-        <h3 class="font-semibold text-gray-800">Recent Activity</h3>
-      </div>
-      <div class="space-y-2" id="activityList">
-        <div class="activity-item">
-          <span class="text-gray-500 text-xs">No activity yet</span>
+    <div class="card bg-base-200 shadow-sm">
+      <div class="card-body p-4">
+        <h3 class="font-semibold text-sm mb-3 flex items-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Recent Activity
+        </h3>
+        <div class="space-y-2" id="activityList">
+          <div class="text-xs text-base-content/60">No activity yet</div>
         </div>
       </div>
     </div>

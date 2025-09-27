@@ -14,10 +14,10 @@ class MessengerAIAssistant {
 
   private initializeUI() {
     // Get DOM elements
-    const consentToggle = document.getElementById('consentToggle') as HTMLElement;
+    const consentToggle = document.getElementById('consentToggle') as HTMLInputElement;
     const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
     const captureBtnText = document.getElementById('captureBtnText') as HTMLElement;
-    const muteToggle = document.getElementById('muteToggle') as HTMLElement;
+    const muteToggle = document.getElementById('muteToggle') as HTMLInputElement;
     const bitrateSlider = document.getElementById('bitrateSlider') as HTMLInputElement;
     const bitrateValue = document.getElementById('bitrateValue') as HTMLElement;
     const statusText = document.getElementById('statusText') as HTMLElement;
@@ -44,9 +44,8 @@ class MessengerAIAssistant {
 
   private setupEventListeners() {
     // Consent toggle
-    this.elements.consentToggle.addEventListener('click', () => {
-      this.consentGiven = !this.consentGiven;
-      this.elements.consentToggle.classList.toggle('active', this.consentGiven);
+    this.elements.consentToggle.addEventListener('change', (e) => {
+      this.consentGiven = (e.target as HTMLInputElement).checked;
       this.updateCaptureButton();
     });
 
@@ -60,9 +59,8 @@ class MessengerAIAssistant {
     });
 
     // Mute toggle
-    this.elements.muteToggle.addEventListener('click', () => {
-      this.isMuted = !this.isMuted;
-      this.elements.muteToggle.classList.toggle('active', this.isMuted);
+    this.elements.muteToggle.addEventListener('change', (e => {
+      this.isMuted = (e.target as HTMLInputElement).checked;
     });
 
     // Bitrate slider
@@ -92,11 +90,11 @@ class MessengerAIAssistant {
     this.elements.connectionDetails.textContent = details;
     
     // Update connection indicator
-    this.elements.connectionIndicator.className = 'status-indicator';
+    this.elements.connectionIndicator.className = 'w-2 h-2 rounded-full mr-2';
     if (status === 'Connected') {
-      this.elements.connectionIndicator.classList.add('status-connected');
+      this.elements.connectionIndicator.classList.add('bg-success');
     } else {
-      this.elements.connectionIndicator.classList.add('status-disconnected');
+      this.elements.connectionIndicator.classList.add('bg-error');
     }
   }
 
@@ -106,14 +104,10 @@ class MessengerAIAssistant {
     
     if (this.isRecording) {
       this.elements.captureBtnText.textContent = 'Stop Capture';
-      this.elements.captureBtn.className = 'modern-button w-full py-4 px-6 rounded-xl text-white font-semibold text-lg mb-6 flex items-center justify-center space-x-3';
-      this.elements.captureBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+      this.elements.captureBtn.className = 'btn btn-error btn-lg w-full mb-4';
     } else {
       this.elements.captureBtnText.textContent = 'Start Capture';
-      this.elements.captureBtn.className = 'modern-button w-full py-4 px-6 rounded-xl text-white font-semibold text-lg mb-6 flex items-center justify-center space-x-3';
-      this.elements.captureBtn.style.background = canCapture 
-        ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-        : '#9ca3af';
+      this.elements.captureBtn.className = 'btn btn-primary btn-lg w-full mb-4';
     }
   }
 
@@ -181,15 +175,15 @@ class MessengerAIAssistant {
     this.elements.statusText.textContent = message;
     
     // Update status indicator
-    this.elements.statusIndicator.className = 'status-indicator';
+    this.elements.statusIndicator.className = 'w-2 h-2 rounded-full mr-2';
     if (type === 'success') {
-      this.elements.statusIndicator.classList.add('status-connected');
+      this.elements.statusIndicator.classList.add('bg-success');
     } else if (type === 'error') {
-      this.elements.statusIndicator.classList.add('status-disconnected');
+      this.elements.statusIndicator.classList.add('bg-error');
     } else if (this.isRecording) {
-      this.elements.statusIndicator.classList.add('status-recording');
+      this.elements.statusIndicator.classList.add('bg-warning');
     } else {
-      this.elements.statusIndicator.classList.add('status-disconnected');
+      this.elements.statusIndicator.classList.add('bg-error');
     }
   }
 
@@ -197,8 +191,8 @@ class MessengerAIAssistant {
     const activityList = document.getElementById('activityList');
     const timestamp = new Date().toLocaleTimeString();
     const activityItem = document.createElement('div');
-    activityItem.className = 'activity-item';
-    activityItem.innerHTML = `<span class="text-gray-500 text-xs">${timestamp}</span> ${message}`;
+    activityItem.className = 'text-xs text-base-content/60';
+    activityItem.innerHTML = `<span class="text-base-content/40">${timestamp}</span> ${message}`;
     activityList.insertBefore(activityItem, activityList.firstChild);
     
     // Keep only last 5 activities
@@ -208,10 +202,10 @@ class MessengerAIAssistant {
   }
 
   private elements: {
-    consentToggle: HTMLElement;
+    consentToggle: HTMLInputElement;
     captureBtn: HTMLButtonElement;
     captureBtnText: HTMLElement;
-    muteToggle: HTMLElement;
+    muteToggle: HTMLInputElement;
     bitrateSlider: HTMLInputElement;
     bitrateValue: HTMLElement;
     statusText: HTMLElement;
