@@ -18,8 +18,17 @@ import websockets
 import threading
 from PIL import Image
 import mss
-import pyaudio
-import wave
+
+# Optional audio imports - will be handled gracefully if not available
+try:
+    import pyaudio
+    import wave
+    AUDIO_AVAILABLE = True
+except ImportError:
+    AUDIO_AVAILABLE = False
+    pyaudio = None
+    wave = None
+
 import io
 
 logger = logging.getLogger(__name__)
@@ -136,13 +145,25 @@ class AudioCapture:
     def __init__(self, sample_rate: int = 44100, channels: int = 2):
         self.sample_rate = sample_rate
         self.channels = channels
-        self.audio = pyaudio.PyAudio()
+        self.audio = None
         self.stream = None
         self.is_recording = False
         self.audio_buffer = []
+        self.audio_available = AUDIO_AVAILABLE
+        
+        if self.audio_available:
+            try:
+                self.audio = pyaudio.PyAudio()
+            except Exception as e:
+                logger.warning(f"PyAudio not available: {e}")
+                self.audio_available = False
         
     def start_recording(self):
         """Start audio recording"""
+        if not self.audio_available:
+            logger.warning("Audio recording not available - PyAudio not installed")
+            return
+            
         try:
             self.stream = self.audio.open(
                 format=pyaudio.paInt16,
@@ -167,6 +188,9 @@ class AudioCapture:
         
     def get_audio_data(self) -> bytes:
         """Get audio data from stream"""
+        if not self.audio_available:
+            return b''
+            
         if self.stream and self.is_recording:
             try:
                 data = self.stream.read(1024, exception_on_overflow=False)
