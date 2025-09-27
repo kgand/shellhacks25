@@ -20,7 +20,7 @@ help:
 # Development server
 dev:
 	@echo "🚀 Starting development server..."
-	cd assist/server && uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+	cd assist/server && uvicorn app_simple:app --host 0.0.0.0 --port 8000 --reload
 
 # Build Chrome extension
 chrome-build:
@@ -30,8 +30,13 @@ chrome-build:
 # Install all dependencies
 install:
 	@echo "📦 Installing dependencies..."
-	cd assist/server && pip install -r requirements.txt
+	cd assist/server && pip install -r requirements_simple.txt
 	cd assist/chrome-ext && npm install
+
+# Simple setup
+setup-simple:
+	@echo "🚀 Setting up system (simplified mode)..."
+	python assist/scripts/setup-simple.py
 
 # Clean build artifacts
 clean:

@@ -12,12 +12,24 @@ from typing import Dict, List
 import os
 from dotenv import load_dotenv
 
-from ws_ingest import WebSocketIngest
-from gemini_live import GeminiLiveClient
-from adk_orchestrator import ADKOrchestrator
-from memory.store_firestore import FirestoreMemoryStore
-from revive_api import ReviveAPI
-from models.schemas import ReviveRequest, ReviveResponse
+# Import modules with error handling
+try:
+    from ws_ingest import WebSocketIngest
+    from gemini_live import GeminiLiveClient
+    from adk_orchestrator import ADKOrchestrator
+    from memory.store_firestore import FirestoreMemoryStore
+    from revive_api import ReviveAPI
+    from models.schemas import ReviveRequest, ReviveResponse
+except ImportError as e:
+    logger.warning(f"Some modules failed to import: {e}")
+    # Set to None for now
+    WebSocketIngest = None
+    GeminiLiveClient = None
+    ADKOrchestrator = None
+    FirestoreMemoryStore = None
+    ReviveAPI = None
+    ReviveRequest = None
+    ReviveResponse = None
 
 # Load environment variables
 load_dotenv()

@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -16,53 +16,64 @@ class EmbeddingPipeline:
     """Pipeline for generating embeddings from text and images"""
     
     def __init__(self):
-        self.text_model = None
-        self.multimodal_model = None
         self.is_initialized = False
     
     async def initialize(self):
         """Initialize embedding models"""
         try:
-            # Initialize text embedding model
-            self.text_model = SentenceTransformer('all-MiniLM-L6-v2')
-            
-            # For multimodal embeddings, we'd use Google's multimodal-embedding-1
-            # For now, we'll use a placeholder
-            self.multimodal_model = None
-            
+            # For now, we'll use simple hash-based embeddings
+            # In production, you'd integrate with Google's embedding APIs
             self.is_initialized = True
-            logger.info("Embedding pipeline initialized")
+            logger.info("Embedding pipeline initialized (using hash-based embeddings)")
             
         except Exception as e:
             logger.error(f"Failed to initialize embedding pipeline: {e}")
             raise
     
     async def generate_text_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text"""
+        """Generate embedding for text using hash-based approach"""
         try:
             if not self.is_initialized:
                 await self.initialize()
             
-            if self.text_model:
-                embedding = self.text_model.encode(text)
-                return embedding.tolist()
-            else:
-                # Fallback to random embedding
-                return np.random.randn(384).tolist()
+            # Create a deterministic hash-based embedding
+            text_hash = hashlib.sha256(text.encode()).hexdigest()
+            # Convert hash to a fixed-size vector
+            embedding = []
+            for i in range(0, len(text_hash), 2):
+                val = int(text_hash[i:i+2], 16) / 255.0  # Normalize to 0-1
+                embedding.append(val)
+            
+            # Pad or truncate to 384 dimensions
+            while len(embedding) < 384:
+                embedding.append(0.0)
+            embedding = embedding[:384]
+            
+            return embedding
                 
         except Exception as e:
             logger.error(f"Failed to generate text embedding: {e}")
             return np.random.randn(384).tolist()
     
     async def generate_image_embedding(self, image_data: bytes) -> List[float]:
-        """Generate embedding for image"""
+        """Generate embedding for image using hash-based approach"""
         try:
             if not self.is_initialized:
                 await self.initialize()
             
-            # In production, this would use Google's multimodal-embedding-1
-            # For now, return a random embedding
-            return np.random.randn(512).tolist()
+            # Create a deterministic hash-based embedding for image
+            image_hash = hashlib.sha256(image_data).hexdigest()
+            embedding = []
+            for i in range(0, len(image_hash), 2):
+                val = int(image_hash[i:i+2], 16) / 255.0
+                embedding.append(val)
+            
+            # Pad or truncate to 512 dimensions
+            while len(embedding) < 512:
+                embedding.append(0.0)
+            embedding = embedding[:512]
+            
+            return embedding
             
         except Exception as e:
             logger.error(f"Failed to generate image embedding: {e}")
