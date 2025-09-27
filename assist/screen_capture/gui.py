@@ -312,40 +312,83 @@ class ScreenCaptureGUI:
         
         try:
             self.capture = ScreenCapture()
-            self.capture.start_capture(self.detector.selected_window)
-            self.is_capturing = True
             
-            # Update UI
-            self.start_button.config(state='disabled')
-            self.stop_button.config(state='normal')
-            self.progress.start()
-            self.status_label.config(text="● Capturing", style='Status.TLabel')
+            # Start capture in a separate thread to handle async properly
+            def start_async_capture():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        self.capture.start_capture(self.detector.selected_window)
+                    )
+                    if result:
+                        # Update UI on main thread
+                        self.root.after(0, self._on_capture_started)
+                    else:
+                        self.root.after(0, lambda: self._log_message("Failed to start capture", "ERROR"))
+                except Exception as e:
+                    self.root.after(0, lambda: self._log_message(f"Failed to start capture: {e}", "ERROR"))
+                finally:
+                    loop.close()
             
-            self._log_message("Screen capture started successfully")
+            # Start the async capture in a thread
+            capture_thread = threading.Thread(target=start_async_capture, daemon=True)
+            capture_thread.start()
             
         except Exception as e:
             self._log_message(f"Failed to start capture: {e}", "ERROR")
             messagebox.showerror("Capture Error", f"Failed to start capture: {e}")
     
+    def _on_capture_started(self):
+        """Handle successful capture start"""
+        self.is_capturing = True
+        
+        # Update UI
+        self.start_button.config(state='disabled')
+        self.stop_button.config(state='normal')
+        self.progress.start()
+        self.status_label.config(text="● Capturing", style='Status.TLabel')
+        
+        self._log_message("Screen capture started successfully")
+    
     def _stop_capture(self):
         """Stop screen capture"""
         try:
             if self.capture:
-                self.capture.stop_capture()
-                self.capture = None
-            
-            self.is_capturing = False
-            
-            # Update UI
-            self.start_button.config(state='normal')
-            self.stop_button.config(state='disabled')
-            self.progress.stop()
-            self.status_label.config(text="● Stopped", style='Status.TLabel')
-            
-            self._log_message("Screen capture stopped")
+                # Stop capture in a separate thread to handle async properly
+                def stop_async_capture():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(self.capture.stop_capture())
+                        # Update UI on main thread
+                        self.root.after(0, self._on_capture_stopped)
+                    except Exception as e:
+                        self.root.after(0, lambda: self._log_message(f"Error stopping capture: {e}", "ERROR"))
+                    finally:
+                        loop.close()
+                
+                # Start the async stop in a thread
+                stop_thread = threading.Thread(target=stop_async_capture, daemon=True)
+                stop_thread.start()
+            else:
+                self._on_capture_stopped()
             
         except Exception as e:
             self._log_message(f"Error stopping capture: {e}", "ERROR")
+    
+    def _on_capture_stopped(self):
+        """Handle successful capture stop"""
+        self.capture = None
+        self.is_capturing = False
+        
+        # Update UI
+        self.start_button.config(state='normal')
+        self.stop_button.config(state='disabled')
+        self.progress.stop()
+        self.status_label.config(text="● Stopped", style='Status.TLabel')
+        
+        self._log_message("Screen capture stopped")
     
     def _test_connection(self):
         """Test backend connection"""
