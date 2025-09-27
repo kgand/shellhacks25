@@ -31,15 +31,33 @@ class CropDialog:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
-        # Center the dialog
+        # Configure window properties for better layering
+        self.dialog.attributes('-topmost', True)
+        self.dialog.attributes('-toolwindow', False)
+        
+        # Center the dialog properly
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (900 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (700 // 2)
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+        
+        # Calculate center position relative to parent
+        x = parent_x + (parent_width // 2) - (900 // 2)
+        y = parent_y + (parent_height // 2) - (700 // 2)
+        
+        # Ensure dialog is within screen bounds
+        screen_width = self.dialog.winfo_screenwidth()
+        screen_height = self.dialog.winfo_screenheight()
+        x = max(0, min(x, screen_width - 900))
+        y = max(0, min(y, screen_height - 700))
+        
         self.dialog.geometry(f"900x700+{x}+{y}")
         
-        # Ensure dialog stays on top
+        # Ensure dialog stays on top and gets focus
         self.dialog.lift()
         self.dialog.focus_force()
+        self.dialog.attributes('-topmost', False)  # Remove topmost after positioning
         
         # Crop region variables
         self.start_x = 0
@@ -839,7 +857,7 @@ class SimpleCaptureGUI:
                             self.root.after(0, lambda: self._display_comprehensive_summary(comprehensive))
                             break
                     
-                    time.sleep(3)  # Check every 3 seconds for more responsive updates
+                    time.sleep(2)  # Check every 2 seconds for more responsive updates
                     
             except Exception as e:
                 self.root.after(0, lambda: self._log_message(f"Error monitoring AI analysis: {e}", "ERROR"))
@@ -1039,7 +1057,7 @@ class SimpleCaptureGUI:
             if self.auto_refresh_var.get():
                 self._refresh_realtime_output()
                 # Schedule next refresh
-                self.realtime_window.after(3000, self._start_auto_refresh)  # Refresh every 3 seconds
+                self.realtime_window.after(2000, self._start_auto_refresh)  # Refresh every 2 seconds
     
     def _open_messenger(self):
         """Open Messenger in browser"""

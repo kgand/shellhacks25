@@ -45,8 +45,8 @@ class RealtimeAnalyzer:
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
-        # Analysis settings
-        self.target_fps = 0.5  # Process every 2 seconds
+        # Analysis settings - more frequent processing
+        self.target_fps = 1.0  # Process every 1 second for better responsiveness
         self.analysis_interval = 1.0 / self.target_fps
         
         # Callbacks
@@ -164,16 +164,20 @@ class RealtimeAnalyzer:
     def _find_capture_directory(self) -> Optional[str]:
         """Find the capture output directory"""
         possible_paths = [
-            "../screen_capture/capture_output",
-            "screen_capture/capture_output",
-            "capture_output",
-            "../capture_output"
+            "capture_output",  # Current working directory
+            "../capture_output",  # Parent directory
+            "../screen_capture/capture_output",  # Screen capture subdirectory
+            "screen_capture/capture_output",  # Local screen capture
+            os.path.join(os.getcwd(), "capture_output"),  # Absolute path
+            os.path.join(os.path.dirname(os.getcwd()), "capture_output")  # Parent absolute
         ]
         
         for path in possible_paths:
             if os.path.exists(path):
+                logger.info(f"Found capture directory: {path}")
                 return path
         
+        logger.warning("No capture directory found in any expected location")
         return None
     
     def _analyze_latest_frames(self, capture_dir: str):
@@ -182,6 +186,7 @@ class RealtimeAnalyzer:
             # Get all frame files
             frame_files = [f for f in os.listdir(capture_dir) if f.endswith('.jpg')]
             if not frame_files:
+                logger.debug("No frame files found in capture directory")
                 return
             
             # Sort by modification time to get latest
@@ -191,9 +196,16 @@ class RealtimeAnalyzer:
             latest_frame = frame_files[-1]
             frame_path = os.path.join(capture_dir, latest_frame)
             
+            logger.debug(f"Analyzing latest frame: {latest_frame}")
+            
             # Load and analyze frame
             frame = cv2.imread(frame_path)
             if frame is not None:
+                # Check if Ollama is available before attempting analysis
+                if not self.ollama_client.is_available():
+                    logger.warning("Ollama is not available, skipping frame analysis")
+                    return
+                
                 # Messenger-specific analysis prompt
                 system_prompt = """You are analyzing a Messenger video call or chat interface. 
                 Focus on identifying people, their expressions, gestures, and any text or UI elements visible.
@@ -201,11 +213,15 @@ class RealtimeAnalyzer:
                 
                 user_query = "What do you see in this Messenger interface? Focus on people, expressions, and any visible text."
                 
-                analysis = self.ollama_client.analyze_frame(
-                    frame, 
-                    system_prompt=system_prompt,
-                    user_query=user_query
-                )
+                try:
+                    analysis = self.ollama_client.analyze_frame(
+                        frame, 
+                        system_prompt=system_prompt,
+                        user_query=user_query
+                    )
+                except Exception as e:
+                    logger.error(f"Error analyzing frame with Ollama: {e}")
+                    return
                 
                 # Store analysis result
                 result = {
