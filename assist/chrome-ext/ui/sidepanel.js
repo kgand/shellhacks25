@@ -168,21 +168,25 @@ class MessengerAIAssistant {
                 });
             });
             
+            console.log('Creating offscreen document...');
             // Create offscreen document if it doesn't exist
             await chrome.offscreen.createDocument({
                 url: 'offscreen.html',
                 reasons: ['USER_MEDIA'],
                 justification: 'A/V capture & encoding'
             });
+            console.log('Offscreen document created');
 
             // Send stream to offscreen document
+            console.log('Sending message to offscreen document...');
             chrome.runtime.sendMessage({
                 type: 'start-recording',
                 target: 'offscreen',
-                streamId: stream.id,
+                mediaStream: stream,
                 bitrate: this.bitrate,
                 muteMic: this.isMuted
             });
+            console.log('Message sent to offscreen document');
 
             this.isRecording = true;
             this.updateCaptureButton();

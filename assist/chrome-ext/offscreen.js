@@ -129,12 +129,22 @@ const mediaCapture = new MediaCapture();
 
 // Handle messages from service worker
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'START_CAPTURE') {
+  console.log('Offscreen document received message:', message);
+  
+  if (message.type === 'start-recording' && message.target === 'offscreen') {
+    console.log('Starting capture in offscreen document...');
     mediaCapture.startCapture(message.mediaStream)
-      .then(() => sendResponse({ success: true }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(() => {
+        console.log('Capture started successfully');
+        sendResponse({ success: true });
+      })
+      .catch(error => {
+        console.error('Failed to start capture:', error);
+        sendResponse({ success: false, error: error.message });
+      });
     return true; // Keep message channel open for async response
-  } else if (message.type === 'STOP_CAPTURE') {
+  } else if (message.type === 'stop-recording' && message.target === 'offscreen') {
+    console.log('Stopping capture in offscreen document...');
     mediaCapture.stopCapture();
     sendResponse({ success: true });
   }

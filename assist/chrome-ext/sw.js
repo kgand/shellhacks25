@@ -7,14 +7,18 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Handle messages from side panel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Service worker received message:', message);
+  
   if (message.type === 'CREATE_OFFSCREEN') {
     createOffscreenDocument();
     sendResponse({ success: true });
-  } else if (message.type === 'START_CAPTURE') {
+  } else if (message.type === 'start-recording' && message.target === 'offscreen') {
+    console.log('Forwarding start-recording message to offscreen');
     // Forward to offscreen document
     chrome.runtime.sendMessage(message);
     sendResponse({ success: true });
-  } else if (message.type === 'STOP_CAPTURE') {
+  } else if (message.type === 'stop-recording' && message.target === 'offscreen') {
+    console.log('Forwarding stop-recording message to offscreen');
     // Forward to offscreen document
     chrome.runtime.sendMessage(message);
     sendResponse({ success: true });
