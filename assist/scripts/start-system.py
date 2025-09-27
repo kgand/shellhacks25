@@ -45,16 +45,25 @@ def main():
     
     # Check environment variables
     print("🔍 Checking environment...")
+    
+    # Load .env file from assist folder
+    env_file = Path("assist/.env")
+    if env_file.exists():
+        from dotenv import load_dotenv
+        load_dotenv(env_file)
+        print("✅ .env file loaded from assist folder")
+    else:
+        print("⚠️  No .env file found in assist folder")
+    
+    # Check for required variables (but don't fail if missing in simplified mode)
     required_vars = ['GOOGLE_PROJECT_ID', 'GEMINI_API_KEY']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:
-        print(f"❌ Missing environment variables: {', '.join(missing_vars)}")
-        print("   Please create a .env file with the required variables")
-        print("   See assist/.env.example for reference")
-        sys.exit(1)
-    
-    print("✅ Environment variables found")
+        print(f"⚠️  Optional environment variables missing: {', '.join(missing_vars)} (simplified mode)")
+        print("   The system will work in simplified mode without these variables")
+    else:
+        print("✅ All environment variables found")
     
     # Check if backend is already running
     if check_backend_running():

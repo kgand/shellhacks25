@@ -70,7 +70,7 @@ def main():
     print("✅ Chrome extension built")
     
     # Create .env file if it doesn't exist
-    env_file = Path(".env")
+    env_file = Path("assist/.env")
     if not env_file.exists():
         print("📝 Creating .env file...")
         env_content = """# Messenger AI Assistant Environment Variables
@@ -87,14 +87,14 @@ GEMINI_API_KEY=
 FIREBASE_PROJECT_ID=
 
 # Backend Configuration
-BACKEND_HOST=0.0.0.0
+BACKEND_HOST=127.0.0.1
 BACKEND_PORT=8000
 WEBSOCKET_PORT=8765
 """
         env_file.write_text(env_content)
-        print("✅ .env file created")
+        print("✅ .env file created in assist folder")
     else:
-        print("✅ .env file already exists")
+        print("✅ .env file already exists in assist folder")
     
     print("\n🎉 Setup complete!")
     print("\n📋 Next steps:")

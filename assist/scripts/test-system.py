@@ -143,6 +143,13 @@ class SystemTester:
     def check_environment(self):
         """Check environment variables and configuration"""
         import os
+        from pathlib import Path
+        from dotenv import load_dotenv
+        
+        # Load .env file from assist folder
+        env_file = Path("assist/.env")
+        if env_file.exists():
+            load_dotenv(env_file)
         
         # For simplified mode, we don't require Google Cloud variables
         optional_vars = [
