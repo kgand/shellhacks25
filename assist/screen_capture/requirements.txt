@@ -6,4 +6,7 @@ mss==9.0.1
 websockets==12.0
 numpy==1.24.3
 pywin32==306
-# pyaudio==0.2.11  # Optional - requires PortAudio on Windows
+requests==2.31.0
+# Audio dependencies (optional - install if audio capture is needed)
+# pyaudio==0.2.11  # Requires PortAudio on Windows
+# wave  # Built-in Python module
