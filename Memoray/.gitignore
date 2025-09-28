@@ -1,0 +1,14 @@
+﻿node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+android/
+ios/
+.env
+*.keystore
+google-services.json
+GoogleService-Info.plist
+.vscode/
+.DS_Store
+./server/serviceAccount.json
