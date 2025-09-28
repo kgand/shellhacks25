@@ -1,0 +1,10 @@
+# Google A2A ADK Configuration Template
+# Copy this file to .env and fill in your actual values
+
+# Required: Google A2A ADK API Key
+# Get this from Google Cloud Console
+A2A_ADK_API_KEY=your_a2a_adk_api_key_here
+
+# Optional: Additional configuration
+# DEBUG_MODE=false
+# LOG_LEVEL=INFO
