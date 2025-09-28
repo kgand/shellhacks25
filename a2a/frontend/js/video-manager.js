@@ -26,19 +26,26 @@ export class VideoManager {
      * @returns {Promise} - Resolves when capture is initialized
      */
     async startCapture(mode, onImageData, onAudioData) {
-      if (mode !== 'screen') {
-        throw new Error('Only screen capture mode is supported');
+      if (mode !== 'screen' && mode !== 'camera') {
+        throw new Error('Only screen and camera capture modes are supported');
       }
       
       this.onImageData = onImageData;
       this.onAudioData = onAudioData;
       
       try {
-        // Acquire screen capture with audio
-        this.videoStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: true // Include system audio
-        });
+        // Acquire video capture based on mode
+        if (mode === 'screen') {
+          this.videoStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: true // Include system audio
+          });
+        } else if (mode === 'camera') {
+          this.videoStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: true
+          });
+        }
         
         // Set video source
         this.videoElement.srcObject = this.videoStream;

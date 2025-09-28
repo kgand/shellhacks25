@@ -36,10 +36,18 @@ class A2AADKApp {
     this.stopButton = document.getElementById('stopButton');
     
     // Add click handlers
-    this.startAudioBtn.addEventListener('click', () => this.startStream('audio'));
-    this.startCameraBtn.addEventListener('click', () => this.startStream('camera'));
-    this.startScreenBtn.addEventListener('click', () => this.startStream('screen'));
-    this.stopButton.addEventListener('click', () => this.stopStream());
+    if (this.startAudioBtn) {
+      this.startAudioBtn.addEventListener('click', () => this.startStream('audio'));
+    }
+    if (this.startCameraBtn) {
+      this.startCameraBtn.addEventListener('click', () => this.startStream('camera'));
+    }
+    if (this.startScreenBtn) {
+      this.startScreenBtn.addEventListener('click', () => this.startStream('screen'));
+    }
+    if (this.stopButton) {
+      this.stopButton.addEventListener('click', () => this.stopStream());
+    }
     
     // Add keyboard interrupt handler
     document.addEventListener('keydown', (event) => {

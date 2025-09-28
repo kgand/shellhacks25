@@ -1,10 +1,20 @@
-# Google A2A ADK Configuration Template
-# Copy this file to .env and fill in your actual values
+# Google A2A ADK API Configuration
+A2A_ADK_API_KEY=your_google_a2a_adk_api_key_here
 
-# Required: Google A2A ADK API Key
-# Get this from Google Cloud Console
-A2A_ADK_API_KEY=your_a2a_adk_api_key_here
+# Server Configuration
+HOST=127.0.0.1
+PORT=8000
+DEBUG=True
 
-# Optional: Additional configuration
-# DEBUG_MODE=false
-# LOG_LEVEL=INFO
+# Cognitive Assistance System Configuration
+COGNITIVE_SYSTEM_ENABLED=True
+ALZHEIMER_SUPPORT_MODE=True
+SAFETY_MONITORING_ENABLED=True
+FAMILY_COMMUNICATION_ENABLED=True
+
+# Database Configuration (if using persistent storage)
+DATABASE_URL=sqlite:///cognitive_assistance.db
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=cognitive_assistance.log

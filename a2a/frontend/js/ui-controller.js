@@ -32,7 +32,9 @@ export class UIController {
      * @param {boolean} isStreaming - Whether streaming is active
      */
     updateUIForStreaming(isStreaming) {
-      this.elements.startScreenBtn.disabled = isStreaming;
+      // Get all start buttons
+      const startButtons = document.querySelectorAll('#startAudioBtn, #startCameraBtn, #startScreenBtn');
+      startButtons.forEach(btn => btn.disabled = isStreaming);
       this.elements.stopButton.disabled = !isStreaming;
     }
     
