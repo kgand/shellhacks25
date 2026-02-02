@@ -1,0 +1,476 @@
+"""
+Real-time Messenger Analysis Service
+Processes captured frames and audio in real-time using Ollama
+"""
+
+import os
+import time
+import threading
+import logging
+from typing import Dict, List, Optional, Callable, Any
+from datetime import datetime
+import json
+import cv2
+import numpy as np
+from pathlib import Path
+
+from ollama_client import OllamaClient
+from audio_processor import AudioProcessor
+from summarization_service import SummarizationService
+
+logger = logging.getLogger(__name__)
+
+class RealtimeAnalyzer:
+    """Real-time analyzer for Messenger content"""
+    
+    def __init__(self, output_dir: str = "processed"):
+        self.ollama_client = OllamaClient()
+        self.audio_processor = AudioProcessor()
+        self.summarization_service = SummarizationService()
+        self.output_dir = output_dir
+        self.is_analyzing = False
+        self.analysis_thread = None
+        self.frame_analysis_results = []
+        self.audio_transcription = ""
+        self.audio_analysis_results = []
+        self.summary = ""
+        self.comprehensive_summary = None
+        
+        # Real-time output tracking
+        self.realtime_outputs = []  # Store real-time analysis outputs
+        self.latest_frame_analysis = None
+        self.latest_audio_analysis = None
+        self.analysis_stream_active = False
+        
+        # Frame and audio tracking for continuous processing
+        self.processed_frames = set()  # Track processed frame files
+        self.processed_audio_files = set()  # Track processed audio files
+        
+        # Create output directory
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Analysis settings - more frequent processing
+        self.target_fps = 1.0  # Process every 1 second for better responsiveness
+        self.analysis_interval = 1.0 / self.target_fps
+        
+        # Callbacks
+        self.on_frame_analyzed: Optional[Callable] = None
+        self.on_summary_updated: Optional[Callable] = None
+        self.on_realtime_output: Optional[Callable] = None
+        
+    def start_analysis(self, session_id: str) -> bool:
+        """
+        Start real-time analysis for a session
+        
+        Args:
+            session_id: Session ID to analyze
+            
+        Returns:
+            True if started successfully, False otherwise
+        """
+        if self.is_analyzing:
+            logger.warning("Analysis already in progress")
+            return False
+        
+        if not self.ollama_client.is_available():
+            logger.error("Ollama is not available")
+            return False
+        
+        try:
+            self.session_id = session_id
+            self.is_analyzing = True
+            self.frame_analysis_results = []
+            self.audio_transcription = ""
+            self.audio_analysis_results = []
+            self.summary = ""
+            self.comprehensive_summary = None
+            
+            # Reset real-time output tracking
+            self.realtime_outputs = []
+            self.latest_frame_analysis = None
+            self.latest_audio_analysis = None
+            self.analysis_stream_active = True
+            
+            # Start analysis thread
+            self.analysis_thread = threading.Thread(
+                target=self._analysis_loop, 
+                daemon=True
+            )
+            self.analysis_thread.start()
+            
+            logger.info(f"Started real-time analysis for session: {session_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to start analysis: {e}")
+            self.is_analyzing = False
+            return False
+    
+    def stop_analysis(self):
+        """Stop real-time analysis"""
+        if not self.is_analyzing:
+            return
+        
+        self.is_analyzing = False
+        self.analysis_stream_active = False
+        
+        if self.analysis_thread:
+            self.analysis_thread.join()
+        
+        logger.info("Real-time analysis stopped")
+    
+    def _analysis_loop(self):
+        """Main analysis loop"""
+        last_analysis_time = time.time()
+        
+        try:
+            while self.is_analyzing:
+                current_time = time.time()
+                
+                # Check if it's time for next analysis
+                if current_time - last_analysis_time >= self.analysis_interval:
+                    self._analyze_captured_content()
+                    last_analysis_time = current_time
+                
+                # Sleep briefly to avoid busy waiting
+                time.sleep(0.1)
+                
+        except Exception as e:
+            logger.error(f"Error in analysis loop: {e}")
+        finally:
+            self.is_analyzing = False
+    
+    def _analyze_captured_content(self):
+        """Analyze captured frames and audio"""
+        try:
+            # Find captured files
+            capture_dir = self._find_capture_directory()
+            if not capture_dir:
+                return
+            
+            # Analyze latest frames
+            self._analyze_latest_frames(capture_dir)
+            
+            # Process audio if available
+            self._process_audio_files(capture_dir)
+            
+            # Generate summary if we have enough data
+            if len(self.frame_analysis_results) > 0:
+                self._generate_summary()
+            
+            # Generate comprehensive summary periodically
+            if self.summarization_service.should_update_summary():
+                self._generate_comprehensive_summary()
+                
+        except Exception as e:
+            logger.error(f"Error analyzing captured content: {e}")
+    
+    def _find_capture_directory(self) -> Optional[str]:
+        """Find the capture output directory"""
+        possible_paths = [
+            "capture_output",  # Current working directory
+            "../capture_output",  # Parent directory
+            "../screen_capture/capture_output",  # Screen capture subdirectory
+            "screen_capture/capture_output",  # Local screen capture
+            os.path.join(os.getcwd(), "capture_output"),  # Absolute path
+            os.path.join(os.path.dirname(os.getcwd()), "capture_output")  # Parent absolute
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                logger.info(f"Found capture directory: {path}")
+                return path
+        
+        logger.warning("No capture directory found in any expected location")
+        return None
+    
+    def _analyze_latest_frames(self, capture_dir: str):
+        """Analyze new captured frames that haven't been processed yet"""
+        try:
+            # Get all frame files
+            frame_files = [f for f in os.listdir(capture_dir) if f.endswith('.jpg')]
+            if not frame_files:
+                logger.debug("No frame files found in capture directory")
+                return
+            
+            # Sort by modification time to get newest first
+            frame_files.sort(key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)), reverse=True)
+            
+            # Process new frames that haven't been analyzed yet
+            new_frames = [f for f in frame_files if f not in self.processed_frames]
+            
+            if not new_frames:
+                logger.debug("No new frames to analyze")
+                return
+            
+            logger.info(f"Found {len(new_frames)} new frames to analyze")
+            
+            # Check if Ollama is available before attempting analysis
+            if not self.ollama_client.is_available():
+                logger.warning("Ollama is not available, skipping frame analysis")
+                return
+            
+            # Process up to 3 newest frames to avoid overwhelming the system
+            frames_to_process = new_frames[:3]
+            
+            for frame_file in frames_to_process:
+                frame_path = os.path.join(capture_dir, frame_file)
+                logger.debug(f"Analyzing new frame: {frame_file}")
+                
+                # Load and analyze frame
+                frame = cv2.imread(frame_path)
+                if frame is not None:
+                    # Messenger-specific analysis prompt
+                    system_prompt = """You are analyzing a Messenger video call or chat interface. 
+                    Focus on identifying people, their expressions, gestures, and any text or UI elements visible.
+                    Describe the scene concisely in under 200 characters."""
+                    
+                    user_query = "What do you see in this Messenger interface? Focus on people, expressions, and any visible text."
+                    
+                    try:
+                        analysis = self.ollama_client.analyze_frame(
+                            frame, 
+                            system_prompt=system_prompt,
+                            user_query=user_query
+                        )
+                    except Exception as e:
+                        logger.error(f"Error analyzing frame {frame_file} with Ollama: {e}")
+                        continue
+                
+                    # Store analysis result
+                    result = {
+                        "timestamp": datetime.now().isoformat(),
+                        "frame_file": frame_file,
+                        "analysis": analysis
+                    }
+                    
+                    self.frame_analysis_results.append(result)
+                    self.latest_frame_analysis = result
+                    
+                    # Mark frame as processed
+                    self.processed_frames.add(frame_file)
+                    
+                    # Keep only last 50 results to avoid memory issues
+                    if len(self.frame_analysis_results) > 50:
+                        self.frame_analysis_results = self.frame_analysis_results[-50:]
+                    
+                    # Create real-time output entry
+                    realtime_output = {
+                        "type": "frame_analysis",
+                        "timestamp": datetime.now().isoformat(),
+                        "content": analysis,
+                        "frame_file": frame_file,
+                        "session_id": getattr(self, 'session_id', None)
+                    }
+                    
+                    self.realtime_outputs.append(realtime_output)
+                    
+                    # Keep only last 100 real-time outputs
+                    if len(self.realtime_outputs) > 100:
+                        self.realtime_outputs = self.realtime_outputs[-100:]
+                    
+                    # Call callbacks if set
+                    if self.on_frame_analyzed:
+                        self.on_frame_analyzed(result)
+                    
+                    if self.on_realtime_output:
+                        self.on_realtime_output(realtime_output)
+                    
+                    logger.info(f"Analyzed frame: {frame_file}")
+                    logger.info(f"Real-time output: {analysis[:100]}...")
+                
+        except Exception as e:
+            logger.error(f"Error analyzing frames: {e}")
+    
+    def _process_audio_files(self, capture_dir: str):
+        """Process new audio files for transcription"""
+        try:
+            # Get audio files
+            audio_files = [f for f in os.listdir(capture_dir) if f.endswith('.wav')]
+            if not audio_files:
+                return
+            
+            # Sort by modification time to get newest first
+            audio_files.sort(key=lambda x: os.path.getmtime(os.path.join(capture_dir, x)), reverse=True)
+            
+            # Process new audio files that haven't been processed yet
+            new_audio_files = [f for f in audio_files if f not in self.processed_audio_files]
+            
+            if not new_audio_files:
+                logger.debug("No new audio files to process")
+                return
+            
+            logger.info(f"Found {len(new_audio_files)} new audio files to process")
+            
+            # Process up to 2 newest audio files to avoid overwhelming the system
+            audio_files_to_process = new_audio_files[:2]
+            
+            for audio_file in audio_files_to_process:
+                audio_path = os.path.join(capture_dir, audio_file)
+                logger.debug(f"Processing new audio file: {audio_file}")
+                
+                # Process audio file
+                audio_result = self.audio_processor.process_audio_file(audio_path)
+                
+                if audio_result["status"] == "success":
+                    self.audio_analysis_results.append(audio_result)
+                    self.latest_audio_analysis = audio_result
+                    
+                    # Mark audio file as processed
+                    self.processed_audio_files.add(audio_file)
+                    
+                    # Update combined transcription
+                    if audio_result.get("transcription"):
+                        if self.audio_transcription:
+                            self.audio_transcription += f"\n\n--- {audio_file} ---\n"
+                        else:
+                            self.audio_transcription = f"--- {audio_file} ---\n"
+                        self.audio_transcription += audio_result["transcription"]
+                    
+                    # Create real-time output entry for audio
+                    realtime_output = {
+                        "type": "audio_analysis",
+                        "timestamp": datetime.now().isoformat(),
+                        "content": audio_result.get("transcription", "Audio processed"),
+                        "audio_file": audio_file,
+                        "session_id": getattr(self, 'session_id', None)
+                    }
+                    
+                    self.realtime_outputs.append(realtime_output)
+                    
+                    # Keep only last 100 real-time outputs
+                    if len(self.realtime_outputs) > 100:
+                        self.realtime_outputs = self.realtime_outputs[-100:]
+                    
+                    # Call real-time output callback if set
+                    if self.on_realtime_output:
+                        self.on_realtime_output(realtime_output)
+                    
+                    logger.info(f"Processed audio file: {audio_file}")
+                    logger.info(f"Real-time audio output: {audio_result.get('transcription', 'Audio processed')[:100]}...")
+                else:
+                    logger.warning(f"Failed to process audio file {audio_file}: {audio_result.get('error', 'Unknown error')}")
+                
+        except Exception as e:
+            logger.error(f"Error processing audio: {e}")
+    
+    def _generate_summary(self):
+        """Generate summary of analyzed content"""
+        try:
+            if not self.frame_analysis_results:
+                return
+            
+            # Combine frame analyses
+            frame_analyses = [result["analysis"] for result in self.frame_analysis_results[-10:]]  # Last 10 analyses
+            combined_content = "\n".join([
+                f"Frame {i+1}: {analysis}" 
+                for i, analysis in enumerate(frame_analyses)
+            ])
+            
+            # Add audio transcription if available
+            if self.audio_transcription:
+                combined_content += f"\n\nAudio: {self.audio_transcription}"
+            
+            # Generate summary
+            summary_prompt = """Summarize this Messenger conversation content. 
+            Focus on key topics discussed, people involved, and important information.
+            Keep it concise and under 400 characters."""
+            
+            self.summary = self.ollama_client.summarize_content(
+                combined_content,
+                system_prompt=summary_prompt
+            )
+            
+            # Call callback if set
+            if self.on_summary_updated:
+                self.on_summary_updated(self.summary)
+            
+            logger.info("Generated summary of analyzed content")
+            
+        except Exception as e:
+            logger.error(f"Error generating summary: {e}")
+    
+    def _generate_comprehensive_summary(self):
+        """Generate comprehensive summary using the summarization service"""
+        try:
+            if not self.frame_analysis_results and not self.audio_analysis_results:
+                return
+            
+            # Generate comprehensive summary
+            self.comprehensive_summary = self.summarization_service.generate_comprehensive_summary(
+                frame_analyses=self.frame_analysis_results,
+                audio_transcriptions=self.audio_analysis_results,
+                session_context={"session_id": getattr(self, 'session_id', None)}
+            )
+            
+            # Update timestamp
+            self.summarization_service.update_summary_timestamp()
+            
+            # Call callback if set
+            if self.on_summary_updated:
+                self.on_summary_updated(self.comprehensive_summary)
+            
+            logger.info("Generated comprehensive summary")
+            
+        except Exception as e:
+            logger.error(f"Error generating comprehensive summary: {e}")
+    
+    def get_analysis_results(self) -> Dict[str, Any]:
+        """Get current analysis results"""
+        return {
+            "session_id": getattr(self, 'session_id', None),
+            "is_analyzing": self.is_analyzing,
+            "frame_analyses": len(self.frame_analysis_results),
+            "latest_analysis": self.frame_analysis_results[-1] if self.frame_analysis_results else None,
+            "audio_analyses": len(self.audio_analysis_results),
+            "audio_transcription": self.audio_transcription,
+            "summary": self.summary,
+            "comprehensive_summary": self.comprehensive_summary,
+            "realtime_outputs_count": len(self.realtime_outputs),
+            "latest_realtime_output": self.realtime_outputs[-1] if self.realtime_outputs else None,
+            "analysis_stream_active": self.analysis_stream_active,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def get_realtime_outputs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent real-time outputs"""
+        return self.realtime_outputs[-limit:] if self.realtime_outputs else []
+    
+    def get_latest_realtime_output(self) -> Optional[Dict[str, Any]]:
+        """Get the latest real-time output"""
+        return self.realtime_outputs[-1] if self.realtime_outputs else None
+    
+    def clear_realtime_outputs(self):
+        """Clear real-time outputs"""
+        self.realtime_outputs = []
+    
+    def save_analysis_results(self, session_id: str):
+        """Save analysis results to file"""
+        try:
+            results = self.get_analysis_results()
+            results["frame_analysis_results"] = self.frame_analysis_results
+            results["audio_analysis_results"] = self.audio_analysis_results
+            
+            # Save to session directory
+            session_dir = os.path.join(self.output_dir, session_id)
+            os.makedirs(session_dir, exist_ok=True)
+            
+            results_file = os.path.join(session_dir, "analysis_results.json")
+            with open(results_file, 'w', encoding='utf-8') as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Saved analysis results to: {results_file}")
+            
+        except Exception as e:
+            logger.error(f"Error saving analysis results: {e}")
+    
+    def set_analysis_callback(self, callback_type: str, callback: Callable):
+        """Set callback for analysis events"""
+        if callback_type == "frame_analyzed":
+            self.on_frame_analyzed = callback
+        elif callback_type == "summary_updated":
+            self.on_summary_updated = callback
+        elif callback_type == "realtime_output":
+            self.on_realtime_output = callback
+        else:
+            logger.warning(f"Unknown callback type: {callback_type}")
